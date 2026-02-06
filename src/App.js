@@ -74,7 +74,7 @@ const normalizar = (str) =>
         .replace(/[\u0300-\u036f]/g, "")
     : "";
 
-// --- LOGIN ---
+// --- LOGIN (SEM SENHA FIXA NO CÓDIGO) ---
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -84,37 +84,36 @@ const LoginScreen = ({ onLogin }) => {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
-    if (user === "admin" && pass === "1234") {
-      const adminUser = {
-        nome: "Administrador",
-        login: "admin",
-        role: "admin",
-        acessoStats: true,
-      };
-      localStorage.setItem("vislumbre_user", JSON.stringify(adminUser));
-      onLogin(adminUser);
-      return;
-    }
+
+    // REMOVIDO: O if do admin fixo (1234) saiu daqui. Agora ele busca no banco.
+
     try {
+      // Busca usuário no banco que tenha esse login E essa senha
       const q = query(
         collection(db, "usuarios"),
         where("login", "==", user),
         where("senha", "==", pass)
       );
       const qs = await getDocs(q);
+
       if (!qs.empty) {
+        // Achou o usuário!
         const dadosUsuario = { ...qs.docs[0].data(), id: qs.docs[0].id };
+
+        // Salva no navegador e avisa o App que logou
         localStorage.setItem("vislumbre_user", JSON.stringify(dadosUsuario));
         onLogin(dadosUsuario);
       } else {
-        setError("Dados incorretos.");
+        setError("Usuário ou senha incorretos.");
       }
     } catch (e) {
-      setError("Erro de conexão.");
+      console.error(e);
+      setError("Erro de conexão com o banco de dados.");
     } finally {
       setLoading(false);
     }
   };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleLogin();
   };
@@ -219,7 +218,7 @@ const LoginScreen = ({ onLogin }) => {
   );
 };
 
-// --- GRÁFICO (COM TOOLTIP INTERATIVO) ---
+// --- GRÁFICO (COM LINHAS DE REFERÊNCIA) ---
 const LineChart = ({ dados }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
@@ -232,14 +231,34 @@ const LineChart = ({ dados }) => {
 
   const width = 800;
   const height = 250;
-  const padding = 40;
-  const maxVal = Math.max(...dados.map((d) => d.valor), 1) * 1.2;
+  const paddingLeft = 70; // Espaço extra para os valores em R$
+  const paddingBottom = 40;
+  const paddingRight = 40;
+  const paddingTop = 40;
+
+  const maxDataVal = Math.max(...dados.map((d) => d.valor), 0);
+  const maxVal = Math.max(maxDataVal, 1) * 1.2; // Escala um pouco maior que o dado
+
+  // Cálculos de posição Y para as linhas de referência
+  const yMax =
+    height -
+    paddingBottom -
+    (maxDataVal / maxVal) * (height - paddingBottom - paddingTop);
+  const yHalf =
+    height -
+    paddingBottom -
+    (maxDataVal / 2 / maxVal) * (height - paddingBottom - paddingTop);
 
   const points = dados.map((d, i) => {
     const xStep =
-      dados.length > 1 ? (width - 2 * padding) / (dados.length - 1) : 0;
-    const x = dados.length > 1 ? padding + i * xStep : width / 2;
-    const y = height - padding - (d.valor / maxVal) * (height - 2 * padding);
+      dados.length > 1
+        ? (width - paddingLeft - paddingRight) / (dados.length - 1)
+        : 0;
+    const x = dados.length > 1 ? paddingLeft + i * xStep : width / 2;
+    const y =
+      height -
+      paddingBottom -
+      (d.valor / maxVal) * (height - paddingBottom - paddingTop);
     return { x, y, ...d };
   });
 
@@ -258,14 +277,74 @@ const LineChart = ({ dados }) => {
         viewBox={`0 0 ${width} ${height}`}
         style={{ overflow: "visible" }}
       >
+        {/* Eixo X base */}
         <line
-          x1={padding}
-          y1={height - padding}
-          x2={width - padding}
-          y2={height - padding}
+          x1={paddingLeft}
+          y1={height - paddingBottom}
+          x2={width - paddingRight}
+          y2={height - paddingBottom}
           stroke="#e2e8f0"
           strokeWidth="2"
         />
+
+        {/* LINHAS DE REFERÊNCIA (Grid) */}
+        {maxDataVal > 0 && (
+          <>
+            {/* Linha do Máximo */}
+            <line
+              x1={paddingLeft}
+              y1={yMax}
+              x2={width - paddingRight}
+              y2={yMax}
+              stroke="#cbd5e1"
+              strokeWidth="1"
+              strokeDasharray="4,4"
+            />
+            <text
+              x={paddingLeft - 10}
+              y={yMax + 4}
+              textAnchor="end"
+              fontSize="11"
+              fill="#64748b"
+              fontWeight="bold"
+            >
+              {formatarMoeda(maxDataVal)}
+            </text>
+
+            {/* Linha da Metade */}
+            <line
+              x1={paddingLeft}
+              y1={yHalf}
+              x2={width - paddingRight}
+              y2={yHalf}
+              stroke="#e2e8f0"
+              strokeWidth="1"
+              strokeDasharray="4,4"
+            />
+            <text
+              x={paddingLeft - 10}
+              y={yHalf + 4}
+              textAnchor="end"
+              fontSize="11"
+              fill="#94a3b8"
+            >
+              {formatarMoeda(maxDataVal / 2)}
+            </text>
+          </>
+        )}
+
+        {/* Base (0,00) */}
+        <text
+          x={paddingLeft - 10}
+          y={height - paddingBottom + 4}
+          textAnchor="end"
+          fontSize="11"
+          fill="#94a3b8"
+        >
+          R$ 0,00
+        </text>
+
+        {/* Linha do Gráfico */}
         {pathD && (
           <path
             d={pathD}
@@ -277,9 +356,9 @@ const LineChart = ({ dados }) => {
           />
         )}
 
+        {/* Pontos Interativos */}
         {points.map((p, i) => (
           <g key={i}>
-            {/* Área de toque maior (invisível) para facilitar o mouse */}
             <circle
               cx={p.x}
               cy={p.y}
@@ -289,7 +368,6 @@ const LineChart = ({ dados }) => {
               onMouseLeave={() => setHoveredPoint(null)}
               style={{ cursor: "pointer" }}
             />
-            {/* Bolinha visível */}
             <circle
               cx={p.x}
               cy={p.y}
@@ -299,36 +377,62 @@ const LineChart = ({ dados }) => {
               strokeWidth="3"
               style={{ pointerEvents: "none" }}
             />
+
+            {/* Data no eixo X (apenas primeiro e último se tiver muitos, ou todos se tiver espaço) */}
+            <text
+              x={p.x}
+              y={height - 10}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#94a3b8"
+              style={{
+                display:
+                  i === 0 || i === points.length - 1 || points.length < 10
+                    ? "block"
+                    : "none",
+              }}
+            >
+              {p.label}
+            </text>
           </g>
         ))}
 
         {/* TOOLTIP FLUTUANTE */}
         {hoveredPoint && (
-          <g transform={`translate(${hoveredPoint.x}, ${hoveredPoint.y - 60})`}>
+          <g
+            transform={`translate(${hoveredPoint.x}, ${hoveredPoint.y - 65})`}
+            style={{ pointerEvents: "none" }}
+          >
             <rect
               x="-60"
               y="0"
               width="120"
-              height="50"
+              height="55"
               rx="8"
               fill="#1e293b"
-              opacity="0.9"
+              filter="drop-shadow(0px 4px 4px rgba(0,0,0,0.2))"
             />
-            <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11">
+            <text
+              x="0"
+              y="20"
+              textAnchor="middle"
+              fill="#cbd5e1"
+              fontSize="11"
+              fontWeight="bold"
+            >
               {hoveredPoint.label}
             </text>
             <text
               x="0"
-              y="38"
+              y="40"
               textAnchor="middle"
               fill="#ffffff"
-              fontSize="14"
-              fontWeight="bold"
+              fontSize="15"
+              fontWeight="800"
             >
               {formatarMoeda(hoveredPoint.valor)}
             </text>
-            {/* Triângulo apontando pra baixo */}
-            <path d="M -6 50 L 6 50 L 0 56 Z" fill="#1e293b" opacity="0.9" />
+            <path d="M -6 55 L 6 55 L 0 61 Z" fill="#1e293b" />
           </g>
         )}
       </svg>
@@ -338,7 +442,7 @@ const LineChart = ({ dados }) => {
 
 // --- ESTATÍSTICAS ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
-  // CONFIGURAÇÃO DA DATA PADRÃO (10 DIAS ATRÁS)
+  // DATA PADRÃO: 10 DIAS ATRÁS
   const [dataInicio, setDataInicio] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 10);
@@ -1359,21 +1463,17 @@ export default function App() {
     : Infinity;
 
   const listaFiltrada = pedidos.filter((p) => {
-    const statusP = normalizar(p.status);
-    const abaNorm = normalizar(aba);
-    let statusMatch = false;
-    if (abaNorm === "leads") {
-      statusMatch = statusP === "leads" || statusP === "pendentes";
+    if (aba === "leads") {
+      if (p.status !== "leads" && p.status !== "pendentes") return false;
     } else {
-      statusMatch = statusP === abaNorm;
+      if (p.status !== aba) return false;
     }
     const matchTexto =
-      !termoBusca ||
-      (p.cliente && normalizar(p.cliente).includes(normalizar(termoBusca))) ||
+      (p.cliente &&
+        p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) ||
       (p.telefone && p.telefone.includes(termoBusca));
     const pData = p.tsEntrada || 0;
-    const dataMatch = pData >= filterStart && pData <= filterEnd;
-    return statusMatch && matchTexto && dataMatch;
+    return matchTexto && pData >= filterStart && pData <= filterEnd;
   });
 
   const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
