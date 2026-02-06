@@ -1,4 +1,4 @@
-/* RESET BÁSICO */
+/* RESET E BASE */
 * {
   box-sizing: border-box;
   outline: none;
@@ -6,18 +6,18 @@
 body {
   margin: 0;
   font-family: "Segoe UI", sans-serif;
-  background-color: #f0f2f5;
+  background-color: #f1f5f9;
   color: #1e293b;
   height: 100vh;
   overflow: hidden;
 }
 
-/* LAYOUT DE CARDS */
+/* CONTAINER PRINCIPAL */
 .admin-container {
   padding: 40px;
   height: 100vh;
   overflow-y: auto;
-  background-color: #f8f9fa;
+  background-color: #f1f5f9;
 }
 .admin-wrapper {
   max-width: 1000px;
@@ -43,8 +43,7 @@ body {
   background: white;
   padding: 25px;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
-    0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   margin-bottom: 24px;
   border: 1px solid #e2e8f0;
 }
@@ -57,14 +56,14 @@ body {
   border-bottom: 1px solid #f1f5f9;
 }
 
-/* FORMULÁRIOS E INPUTS */
+/* INPUTS E BOTÕES */
 .input-group {
   margin-bottom: 15px;
 }
 .input-label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: #64748b;
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -76,8 +75,9 @@ body {
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   font-size: 14px;
-  transition: all 0.2s;
   background: #f8fafc;
+  color: #1e293b;
+  transition: 0.2s;
 }
 .modern-input:focus {
   border-color: #3b82f6;
@@ -85,7 +85,6 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* BOTÕES */
 .btn-primary {
   background: #3b82f6;
   color: white;
@@ -108,11 +107,6 @@ body {
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
-}
-.btn-back:hover {
-  background: #f1f5f9;
-  color: #334155;
 }
 .btn-icon-delete {
   background: #fee2e2;
@@ -125,14 +119,14 @@ body {
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: 0.2s;
 }
 .btn-icon-delete:hover {
-  background: #fca5a5;
+  background: #ef4444;
   color: white;
 }
 
-/* GRID DE EQUIPE E SERVIÇOS */
+/* GRID DE CARDS (EQUIPE/SERVIÇOS) */
 .grid-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -146,7 +140,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 .item-card:hover {
   transform: translateY(-2px);
@@ -181,7 +176,70 @@ body {
   margin-top: 2px;
 }
 
-/* TABELAS E STATS */
+/* SIDEBAR (LATERAL) */
+.sidebar-container {
+  width: 320px;
+  min-width: 320px;
+  background: #ffffff;
+  border-right: 1px solid #cbd5e1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  scrollbar-gutter: stable;
+}
+.sidebar-header {
+  padding: 15px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+}
+.sidebar-list-area {
+  padding: 10px;
+  flex: 1;
+}
+.sidebar-card {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  position: relative;
+  transition: 0.2s;
+}
+.sidebar-card:hover {
+  transform: translateY(-2px);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+.sidebar-card.active {
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.sidebar-card-title {
+  font-weight: 700;
+  color: #334155;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.sidebar-card-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.status-badge {
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+  color: #475569;
+}
+
+/* ESTATÍSTICAS */
 .stats-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -194,6 +252,7 @@ body {
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 .kpi-title {
   font-size: 12px;
@@ -207,6 +266,8 @@ body {
   font-weight: 800;
   color: #1e293b;
 }
+
+/* TABELAS */
 .modern-table {
   width: 100%;
   border-collapse: separate;
@@ -225,78 +286,4 @@ body {
   padding: 15px;
   border-bottom: 1px solid #f1f5f9;
   color: #334155;
-}
-.modern-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* --- NOVO CSS DA SIDEBAR (CORREÇÃO DA ROLAGEM) --- */
-.sidebar-container {
-  width: 320px;
-  background: #f8fafc;
-  border-right: 1px solid #e2e8f0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  /* A CORREÇÃO MÁGICA ABAIXO: */
-  scrollbar-gutter: stable;
-}
-
-.sidebar-header {
-  padding: 15px;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.sidebar-list-area {
-  padding: 10px;
-}
-
-.sidebar-card {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.sidebar-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  border-color: #cbd5e1;
-}
-
-.sidebar-card.active {
-  border-left: 4px solid #f59e0b;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.sidebar-card-title {
-  font-weight: 700;
-  color: #334155;
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.sidebar-card-subtitle {
-  font-size: 12px;
-  color: #64748b;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.status-badge {
-  background: #e2e8f0;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: bold;
-  color: #475569;
 }

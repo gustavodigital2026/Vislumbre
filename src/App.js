@@ -20,7 +20,7 @@ import {
 import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
-import "./styles.css"; // Garanta que o CSS está importado!
+import "./styles.css";
 
 // --- UTILITÁRIOS ---
 const mapearStatus = (s) => {
@@ -66,7 +66,15 @@ const parseDataSegura = (valor) => {
   return 0;
 };
 
-// --- LOGIN (COM LOGO EM MOLDURA) ---
+const normalizar = (str) =>
+  str
+    ? str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    : "";
+
+// --- LOGIN ---
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -131,31 +139,28 @@ const LoginScreen = ({ onLogin }) => {
           boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
         }}
       >
-        {/* --- ÁREA DA LOGO COM MOLDURA --- */}
         <div
           style={{
-            background: "white", // Fundo branco da moldura
-            padding: "15px", // Espaço entre a imagem bege e a borda
-            borderRadius: "16px", // Bordas arredondadas da moldura
-            border: "1px solid #e2e8f0", // Borda cinza suave
-            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)", // Sombra suave
-            display: "inline-block", // Faz a moldura abraçar a imagem
-            marginBottom: "15px", // Espaço menor abaixo da moldura
+            background: "white",
+            padding: "15px",
+            borderRadius: "16px",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)",
+            display: "inline-block",
+            marginBottom: "15px",
           }}
         >
           <img
-            src="/logo.jpeg" /* Certifique-se que o nome do arquivo na pasta public está igual */
+            src="/logo.jpeg"
             alt="Vislumbre Logo"
             style={{
               maxWidth: "210px",
               maxHeight: "210px",
-              borderRadius: "8px", // Arredonda levemente os cantos da imagem bege
-              display: "block", // Remove espaços extras
+              borderRadius: "8px",
+              display: "block",
             }}
           />
         </div>
-        {/* -------------------------------- */}
-
         <h2
           style={{
             color: "#1e293b",
@@ -166,7 +171,6 @@ const LoginScreen = ({ onLogin }) => {
         >
           Vislumbre CRM
         </h2>
-
         <div className="input-group">
           <input
             className="modern-input"
@@ -188,7 +192,6 @@ const LoginScreen = ({ onLogin }) => {
             style={{ padding: "14px" }}
           />
         </div>
-
         {error && (
           <p
             style={{
@@ -203,7 +206,6 @@ const LoginScreen = ({ onLogin }) => {
             {error}
           </p>
         )}
-
         <button
           onClick={handleLogin}
           disabled={loading}
@@ -222,7 +224,7 @@ const LineChart = ({ dados }) => {
   if (!dados || dados.length === 0)
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-        Sem dados suficientes para gerar o gráfico.
+        Sem dados suficientes.
       </div>
     );
   const width = 800;
@@ -299,12 +301,9 @@ const LineChart = ({ dados }) => {
   );
 };
 
-// --- ESTATÍSTICAS (DESIGN MELHORADO) ---
+// --- ESTATÍSTICAS (TABELA CORRIGIDA) ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
-  const hoje = new Date();
-  const [dataInicio, setDataInicio] = useState(
-    new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split("T")[0]
-  );
+  const [dataInicio, setDataInicio] = useState("2023-01-01");
   const [dataFim, setDataFim] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -315,8 +314,11 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     const financeiro = {};
     const vendasRaw = {};
     let faturamentoTotal = 0;
+    let totalDevolucoes = 0;
+
     servicos.forEach((s) => (financeiro[s.nome] = 0));
     financeiro["Outros"] = 0;
+
     if (viewMode === "dia") {
       let curr = new Date(dataInicio + "T00:00:00");
       const end = new Date(dataFim + "T23:59:59");
@@ -338,7 +340,6 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
           parseDataSegura(b.timestamp || b.data)
       );
       let tsCriacao = pedido.tsEntrada;
-      let tsProducao = null;
 
       histOrdenado.forEach((acao) => {
         let acaoTs = parseDataSegura(acao.timestamp || acao.data);
@@ -353,29 +354,43 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             entregas: 0,
             tempoProducaoTotal: 0,
           };
-        const desc = acao.desc.toUpperCase();
+        const desc = normalizar(acao.desc);
 
-        if (desc.includes("CRIOU") || desc.includes("LEAD")) {
+        // 1. LEADS
+        if (desc.includes("criou") || desc.includes("lead")) {
           stats[usuario].leads++;
           if (!tsCriacao) tsCriacao = acaoTs;
         }
-        if (desc.includes("PRODUÇÃO") || desc.includes("PRODUCAO")) {
+
+        // 2. VENDA (Entrada em Produção)
+        if (desc.includes("producao") || desc.includes("produção")) {
           stats[usuario].vendas++;
           if (tsCriacao > 0 && acaoTs > tsCriacao)
             stats[usuario].tempoVendaTotal += acaoTs - tsCriacao;
-          tsProducao = acaoTs;
 
           const valor = Number(pedido.valorRaw || 0);
-          const servico = pedido.servico || "Outros";
-          if (financeiro[servico] !== undefined) financeiro[servico] += valor;
-          else financeiro["Outros"] += valor;
-          faturamentoTotal += valor;
-          const diaNormalizado = new Date(acaoTs).setHours(0, 0, 0, 0);
-          vendasRaw[diaNormalizado] = (vendasRaw[diaNormalizado] || 0) + valor;
+          if (pedido.devolvido) {
+            totalDevolucoes += valor;
+          } else {
+            const servico = pedido.servico || "Outros";
+            if (financeiro[servico] !== undefined) financeiro[servico] += valor;
+            else financeiro["Outros"] += valor;
+            faturamentoTotal += valor;
+            const diaNormalizado = new Date(acaoTs).setHours(0, 0, 0, 0);
+            vendasRaw[diaNormalizado] =
+              (vendasRaw[diaNormalizado] || 0) + valor;
+          }
         }
-        if (desc.includes("FINALIZADO") || desc.includes("ENTREGUE")) {
+
+        // 3. PRODUÇÃO (Entregas Finalizadas)
+        if (desc.includes("finalizado") || desc.includes("entregue")) {
           stats[usuario].entregas++;
-          const base = tsProducao || tsCriacao;
+          const acaoProducao = histOrdenado.find((h) =>
+            normalizar(h.desc).includes("producao")
+          );
+          const base = acaoProducao
+            ? parseDataSegura(acaoProducao.timestamp || acaoProducao.data)
+            : tsCriacao;
           if (base > 0 && acaoTs > base)
             stats[usuario].tempoProducaoTotal += acaoTs - base;
         }
@@ -451,14 +466,20 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
       })),
       financeiro,
       faturamentoTotal,
+      totalDevolucoes,
       dadosGrafico: Object.values(aggregated).sort(
         (a, b) => a.sortKey - b.sortKey
       ),
     };
   };
 
-  const { operadores, financeiro, faturamentoTotal, dadosGrafico } =
-    calcularMetricas();
+  const {
+    operadores,
+    financeiro,
+    faturamentoTotal,
+    totalDevolucoes,
+    dadosGrafico,
+  } = calcularMetricas();
   const gerarGraficoPizza = () => {
     if (faturamentoTotal === 0) return "conic-gradient(#e2e8f0 0% 100%)";
     let acumulado = 0;
@@ -503,29 +524,37 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </button>
           </div>
         </div>
-
-        {/* KPI CARDS */}
         <div className="stats-kpi-grid">
           <div className="kpi-card">
-            <div className="kpi-title">Faturamento Total</div>
+            <div className="kpi-title">Faturamento Líquido</div>
             <div className="kpi-value" style={{ color: "#22c55e" }}>
               {formatarMoeda(faturamentoTotal)}
             </div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-title">Leads Criados</div>
-            <div className="kpi-value" style={{ color: "#3b82f6" }}>
-              {operadores.reduce((acc, op) => acc + op.leads, 0)}
-            </div>
-          </div>
-          <div className="kpi-card">
             <div className="kpi-title">Vendas Fechadas</div>
-            <div className="kpi-value" style={{ color: "#8b5cf6" }}>
+            <div className="kpi-value" style={{ color: "#3b82f6" }}>
               {operadores.reduce((acc, op) => acc + op.vendas, 0)}
             </div>
           </div>
+          <div
+            className="kpi-card"
+            style={{
+              border:
+                totalDevolucoes > 0 ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+            }}
+          >
+            <div
+              className="kpi-title"
+              style={{ color: totalDevolucoes > 0 ? "#ef4444" : "#64748b" }}
+            >
+              Devoluções
+            </div>
+            <div className="kpi-value" style={{ color: "#ef4444" }}>
+              {formatarMoeda(totalDevolucoes)}
+            </div>
+          </div>
         </div>
-
         <div
           style={{
             display: "grid",
@@ -543,7 +572,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
                   alignItems: "center",
                 }}
               >
-                <span>📈 Evolução do Faturamento</span>
+                <span>📈 Evolução</span>
                 <div style={{ display: "flex", gap: "5px" }}>
                   {["dia", "semana", "mes"].map((m) => (
                     <button
@@ -629,18 +658,40 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </div>
           </div>
         </div>
-
         <div className="card-panel">
           <div className="card-header">🏆 Performance da Equipe</div>
           <div style={{ overflowX: "auto" }}>
             <table className="modern-table">
               <thead>
                 <tr>
-                  <th>Operador</th>
-                  <th style={{ textAlign: "center" }}>Leads</th>
-                  <th style={{ textAlign: "center" }}>Vendas</th>
-                  <th style={{ textAlign: "center" }}>Tempo (Negociação)</th>
-                  <th style={{ textAlign: "center" }}>Tempo (Produção)</th>
+                  <th style={{ width: "25%" }}>Operador</th>
+                  <th style={{ textAlign: "center", width: "15%" }}>Leads</th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      width: "30%",
+                      color: "#3b82f6",
+                    }}
+                  >
+                    Vendas
+                    <br />
+                    <small style={{ fontSize: "10px", fontWeight: "normal" }}>
+                      Tempo Negociação
+                    </small>
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      width: "30%",
+                      color: "#8b5cf6",
+                    }}
+                  >
+                    Produção
+                    <br />
+                    <small style={{ fontSize: "10px", fontWeight: "normal" }}>
+                      Tempo Entrega
+                    </small>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -650,20 +701,33 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
                       {d.nome}
                     </td>
                     <td style={{ textAlign: "center" }}>{d.leads}</td>
-                    <td
-                      style={{
-                        textAlign: "center",
-                        color: "#22c55e",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {d.vendas}
+                    <td style={{ textAlign: "center" }}>
+                      <strong
+                        style={{
+                          color: "#22c55e",
+                          display: "block",
+                          fontSize: "16px",
+                        }}
+                      >
+                        {d.vendas}
+                      </strong>
+                      <small style={{ color: "#64748b" }}>
+                        {formatarDuracaoHoras(d.mediaVenda)}
+                      </small>
                     </td>
-                    <td style={{ textAlign: "center", color: "#64748b" }}>
-                      {formatarDuracaoHoras(d.mediaVenda)}
-                    </td>
-                    <td style={{ textAlign: "center", color: "#64748b" }}>
-                      {formatarDuracaoHoras(d.mediaProducao)}
+                    <td style={{ textAlign: "center" }}>
+                      <strong
+                        style={{
+                          color: "#8b5cf6",
+                          display: "block",
+                          fontSize: "16px",
+                        }}
+                      >
+                        {d.entregas}
+                      </strong>
+                      <small style={{ color: "#64748b" }}>
+                        {formatarDuracaoHoras(d.mediaProducao)}
+                      </small>
                     </td>
                   </tr>
                 ))}
@@ -676,7 +740,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
   );
 };
 
-// --- GESTÃO DE EQUIPE (DESIGN CARD) ---
+// --- GESTÃO DE EQUIPE ---
 const AdminTeamPanel = ({ voltar }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [novoNome, setNovoNome] = useState("");
@@ -705,6 +769,11 @@ const AdminTeamPanel = ({ voltar }) => {
     if (window.confirm("Remover usuário?"))
       await deleteDoc(doc(db, "usuarios", id));
   };
+  const alterarSenha = async (u) => {
+    const nova = prompt(`Nova senha para ${u.nome}:`, u.senha);
+    if (nova && nova !== u.senha)
+      await updateDoc(doc(db, "usuarios", u.id), { senha: nova });
+  };
   const toggleStats = async (id, statusAtual) => {
     await updateDoc(doc(db, "usuarios", id), { acessoStats: !statusAtual });
   };
@@ -717,17 +786,41 @@ const AdminTeamPanel = ({ voltar }) => {
             Voltar
           </button>
         </div>
-
         <div className="grid-cards" style={{ marginBottom: "40px" }}>
           {usuarios.map((u) => (
             <div key={u.id} className="item-card">
               <div style={{ display: "flex", alignItems: "center" }}>
-                <div className="user-avatar">
+                <div
+                  className="user-avatar"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    background: "#3b82f6",
+                    color: "white",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                    marginRight: "15px",
+                  }}
+                >
                   {u.nome.charAt(0).toUpperCase()}
                 </div>
                 <div className="item-info">
                   <h4 className="item-title">{u.nome}</h4>
                   <p className="item-subtitle">Login: {u.login}</p>
+                  <p
+                    className="item-subtitle"
+                    style={{
+                      color: "#2563eb",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                    onClick={() => alterarSenha(u)}
+                  >
+                    🔑 {u.senha} ✎
+                  </p>
                   <label
                     style={{
                       fontSize: "11px",
@@ -757,7 +850,6 @@ const AdminTeamPanel = ({ voltar }) => {
             </div>
           ))}
         </div>
-
         <div
           className="card-panel"
           style={{ maxWidth: "500px", margin: "0 auto" }}
@@ -800,7 +892,7 @@ const AdminTeamPanel = ({ voltar }) => {
   );
 };
 
-// --- GESTÃO DE SERVIÇOS (DESIGN CARD) ---
+// --- GESTÃO DE SERVIÇOS ---
 const AdminServicesPanel = ({ servicos, voltar }) => {
   const [nome, setNome] = useState("");
   const [cor, setCor] = useState("#3b82f6");
@@ -822,7 +914,6 @@ const AdminServicesPanel = ({ servicos, voltar }) => {
             Voltar
           </button>
         </div>
-
         <div className="grid-cards" style={{ marginBottom: "40px" }}>
           {servicos.map((s) => (
             <div
@@ -853,7 +944,6 @@ const AdminServicesPanel = ({ servicos, voltar }) => {
             </div>
           ))}
         </div>
-
         <div
           className="card-panel"
           style={{ maxWidth: "500px", margin: "0 auto" }}
@@ -896,7 +986,7 @@ const AdminServicesPanel = ({ servicos, voltar }) => {
   );
 };
 
-// --- DEFINIÇÕES GERAIS (DESIGN CARD) ---
+// --- DEFINIÇÕES GERAIS ---
 const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
   return (
     <div className="admin-container">
@@ -907,7 +997,6 @@ const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
             Voltar
           </button>
         </div>
-
         <div className="card-panel">
           <div className="card-header">🤖 Inteligência Artificial (Gemini)</div>
           <div className="input-group">
@@ -924,7 +1013,6 @@ const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
             </p>
           </div>
         </div>
-
         <div className="card-panel">
           <div className="card-header">⏰ Automação de Leads</div>
           <div className="input-group">
@@ -1230,17 +1318,31 @@ export default function App() {
     : Infinity;
 
   const listaFiltrada = pedidos.filter((p) => {
-    if (aba === "leads") {
-      if (p.status !== "leads" && p.status !== "pendentes") return false;
+    const statusP = normalizar(p.status);
+    const abaNorm = normalizar(aba);
+
+    let statusMatch = false;
+    if (abaNorm === "leads") {
+      statusMatch = statusP === "leads" || statusP === "pendentes";
     } else {
-      if (p.status !== aba) return false;
+      statusMatch = statusP === abaNorm;
     }
+
     const matchTexto =
-      (p.cliente &&
-        p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) ||
+      !termoBusca ||
+      (p.cliente && normalizar(p.cliente).includes(normalizar(termoBusca))) ||
       (p.telefone && p.telefone.includes(termoBusca));
+
     const pData = p.tsEntrada || 0;
-    return matchTexto && pData >= filterStart && pData <= filterEnd;
+    const fStart = filtroDataInicio
+      ? new Date(filtroDataInicio + "T00:00:00").getTime()
+      : 0;
+    const fEnd = filtroDataFim
+      ? new Date(filtroDataFim + "T23:59:59").getTime()
+      : Infinity;
+    const dataMatch = pData >= fStart && pData <= fEnd;
+
+    return statusMatch && matchTexto && dataMatch;
   });
 
   const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
@@ -1248,11 +1350,11 @@ export default function App() {
     <div
       style={{
         marginTop: "30px",
-        borderTop: "2px solid #ecf0f1",
+        borderTop: "2px solid #e2e8f0",
         paddingTop: "20px",
       }}
     >
-      <h4 style={{ margin: "0 0 10px 0", color: "#7f8c8d" }}>
+      <h4 style={{ margin: "0 0 10px 0", color: "#64748b" }}>
         📜 Histórico de Atividades
       </h4>
       <div
@@ -1262,11 +1364,11 @@ export default function App() {
           borderRadius: "6px",
           maxHeight: "150px",
           overflowY: "auto",
-          border: "1px solid #eee",
+          border: "1px solid #e2e8f0",
         }}
       >
         {(!historico || historico.length === 0) && (
-          <span style={{ fontSize: "12px", color: "#ccc" }}>
+          <span style={{ fontSize: "12px", color: "#94a3b8" }}>
             Nenhuma atividade registrada.
           </span>
         )}
@@ -1277,7 +1379,7 @@ export default function App() {
               style={{
                 fontSize: "12px",
                 marginBottom: "8px",
-                borderBottom: "1px dashed #ddd",
+                borderBottom: "1px dashed #e2e8f0",
                 paddingBottom: "4px",
               }}
             >
@@ -1314,7 +1416,6 @@ export default function App() {
         }}
       >
         <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          {/* LOGO NO MENU (PEQUENA) */}
           <div style={{ display: "flex", alignItems: "center" }}>
             <img
               src="/logo.jpeg"
@@ -1343,7 +1444,6 @@ export default function App() {
           >
             {currentUser.nome}
           </span>
-
           {currentUser.role === "admin" && (
             <div style={{ position: "relative" }}>
               <button
@@ -1532,7 +1632,7 @@ export default function App() {
           termoBusca={termoBusca}
           setTermoBusca={setTermoBusca}
           filtroDataInicio={filtroDataInicio}
-          setFiltroDataInicio={setFiltroDataFim}
+          setFiltroDataInicio={setFiltroDataInicio}
           filtroDataFim={filtroDataFim}
           setFiltroDataFim={setFiltroDataFim}
           horasReativacao={horasReativacao}
@@ -1572,6 +1672,7 @@ export default function App() {
                 handleAudioUpload={handleAudioUpload}
                 handleDrop={() => {}}
                 servicos={servicos}
+                currentUser={currentUser}
               />
               {pedidoAtivo.status === "finalizados" && (
                 <div

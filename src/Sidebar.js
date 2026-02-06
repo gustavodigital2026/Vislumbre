@@ -1,5 +1,5 @@
 import React from "react";
-import "./styles.css"; // Garante que o CSS vai ser carregado
+import "./styles.css";
 
 const formatarDataLista = (dataString) => {
   if (!dataString) return "";

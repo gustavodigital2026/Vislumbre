@@ -66,8 +66,23 @@ export default function Details({
   handleAudioUpload,
   handleDrop,
   servicos = [],
+  currentUser,
 }) {
   if (!ativo) return null;
+  const isAdmin = currentUser?.role === "admin";
+
+  const toggleDevolucao = () => {
+    const novoStatus = !ativo.devolvido;
+    if (
+      window.confirm(
+        novoStatus
+          ? "Marcar este pedido como DEVOLVIDO? O valor será descontado das estatísticas."
+          : "Restaurar este pedido (cancelar devolução)?"
+      )
+    ) {
+      atualizarPedido(ativo.id, "devolvido", novoStatus);
+    }
+  };
 
   const ListaAudios = ({ audios }) =>
     audios && audios.length > 0 ? (
@@ -345,6 +360,23 @@ export default function Details({
 
       {(ativo.status === "producao" || ativo.status === "finalizados") && (
         <>
+          {ativo.devolvido && (
+            <div
+              style={{
+                background: "#fee2e2",
+                color: "#b91c1c",
+                padding: "15px",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                border: "1px solid #fca5a5",
+                textAlign: "center",
+                fontWeight: "bold",
+              }}
+            >
+              🚫 ESTE PEDIDO FOI DEVOLVIDO (Não conta no faturamento)
+            </div>
+          )}
+
           <div
             style={{
               background: "#e8f5e9",
@@ -354,18 +386,90 @@ export default function Details({
               border: "1px solid #c8e6c9",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "10px",
-                borderBottom: "1px solid #c8e6c9",
-                paddingBottom: "10px",
-              }}
-            >
-              <strong>{ativo.servico}</strong>
-              <strong>{formatarMoeda(ativo.valorRaw)}</strong>
-            </div>
+            {isAdmin ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "10px",
+                  marginBottom: "15px",
+                  borderBottom: "1px solid #c8e6c9",
+                  paddingBottom: "15px",
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "bold",
+                      color: "#2e7d32",
+                    }}
+                  >
+                    SERVIÇO (Admin):
+                  </label>
+                  <select
+                    value={ativo.servico}
+                    onChange={(e) =>
+                      atualizarPedido(ativo.id, "servico", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "5px",
+                      borderRadius: "4px",
+                      border: "1px solid #a5d6a7",
+                    }}
+                  >
+                    {servicos.map((s) => (
+                      <option key={s.id} value={s.nome}>
+                        {s.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "bold",
+                      color: "#2e7d32",
+                    }}
+                  >
+                    VALOR (Admin):
+                  </label>
+                  <input
+                    value={formatarMoeda(ativo.valorRaw)}
+                    onChange={(e) =>
+                      atualizarPedido(
+                        ativo.id,
+                        "valorRaw",
+                        e.target.value.replace(/\D/g, "")
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "5px",
+                      borderRadius: "4px",
+                      border: "1px solid #a5d6a7",
+                      fontWeight: "bold",
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "10px",
+                  borderBottom: "1px solid #c8e6c9",
+                  paddingBottom: "10px",
+                }}
+              >
+                <strong>{ativo.servico}</strong>
+                <strong>{formatarMoeda(ativo.valorRaw)}</strong>
+              </div>
+            )}
+
             <h3 style={{ marginTop: 0, color: "#2e7d32" }}>Roteiro Final:</h3>
             <pre
               style={{
@@ -407,6 +511,35 @@ export default function Details({
             >
               ✅ Finalizar e Enviar WhatsApp
             </button>
+          )}
+
+          {isAdmin && (
+            <div
+              style={{
+                marginTop: "30px",
+                borderTop: "1px solid #eee",
+                paddingTop: "20px",
+                textAlign: "right",
+              }}
+            >
+              <button
+                onClick={toggleDevolucao}
+                style={{
+                  background: "none",
+                  border: "1px solid #ef4444",
+                  color: "#ef4444",
+                  padding: "8px 15px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                }}
+              >
+                {ativo.devolvido
+                  ? "↺ Cancelar Devolução"
+                  : "💸 Registrar Devolução"}
+              </button>
+            </div>
           )}
         </>
       )}
