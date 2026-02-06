@@ -9,9 +9,9 @@ import "./styles.css";
 // --- UTILITÁRIOS ---
 const mapearStatus = (s) => {
   switch(s) {
-    case "leads": return "Leads";
-    case "pendentes": return "Criação da Letra";
-    case "producao": return "Criação Final";
+    case "leads": return "Leads / Criação"; // NOME ATUALIZADO
+    case "pendentes": return "Leads (Antigo)"; // Legado
+    case "producao": return "Produção";
     case "finalizados": return "Entregues";
     default: return s;
   }
@@ -45,7 +45,7 @@ const parseDataSegura = (valor) => {
     return 0; 
 };
 
-// --- LOGIN (PERSISTENTE) ---
+// --- LOGIN (COM ENTER) ---
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -54,14 +54,12 @@ const LoginScreen = ({ onLogin }) => {
 
   const handleLogin = async () => {
     setLoading(true); setError("");
-    
     if (user === "admin" && pass === "1234") {
       const adminUser = { nome: "Administrador", login: "admin", role: "admin", acessoStats: true };
       localStorage.setItem("vislumbre_user", JSON.stringify(adminUser));
       onLogin(adminUser);
       return;
     }
-
     try {
       const q = query(collection(db, "usuarios"), where("login", "==", user), where("senha", "==", pass));
       const qs = await getDocs(q);
@@ -69,18 +67,19 @@ const LoginScreen = ({ onLogin }) => {
           const dadosUsuario = { ...qs.docs[0].data(), id: qs.docs[0].id };
           localStorage.setItem("vislumbre_user", JSON.stringify(dadosUsuario));
           onLogin(dadosUsuario);
-      } else {
-          setError("Dados incorretos.");
-      }
+      } else { setError("Dados incorretos."); }
     } catch (e) { setError("Erro de conexão."); } finally { setLoading(false); }
   };
+
+  // Função para pegar o Enter
+  const handleKeyDown = (e) => { if (e.key === "Enter") handleLogin(); };
 
   return (
     <div style={{height: "100vh", background: "#2c3e50", display: "flex", alignItems: "center", justifyContent: "center"}}>
       <div style={{background: "white", padding: "40px", borderRadius: "10px", width: "300px", textAlign: "center"}}>
         <h2 style={{color: "#2c3e50"}}>Vislumbre CRM 🔒</h2>
-        <input placeholder="Login" value={user} onChange={e=>setUser(e.target.value)} style={{display:"block", width:"100%", padding:"10px", marginBottom:"10px", boxSizing:"border-box"}} />
-        <input type="password" placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} style={{display:"block", width:"100%", padding:"10px", marginBottom:"20px", boxSizing:"border-box"}} />
+        <input placeholder="Login" value={user} onKeyDown={handleKeyDown} onChange={e=>setUser(e.target.value)} style={{display:"block", width:"100%", padding:"10px", marginBottom:"10px", boxSizing:"border-box"}} />
+        <input type="password" placeholder="Senha" value={pass} onKeyDown={handleKeyDown} onChange={e=>setPass(e.target.value)} style={{display:"block", width:"100%", padding:"10px", marginBottom:"20px", boxSizing:"border-box"}} />
         {error && <p style={{color: "red", fontSize: "12px"}}>{error}</p>}
         <button onClick={handleLogin} disabled={loading} style={{width: "100%", padding: "10px", background: "#27ae60", color: "white", border: "none", borderRadius: "5px", cursor:"pointer", fontWeight: "bold"}}>
             {loading ? "..." : "ENTRAR"}
@@ -90,10 +89,11 @@ const LoginScreen = ({ onLogin }) => {
   );
 };
 
+// --- GRÁFICO (COM VALORES EM CIMA) ---
 const LineChart = ({ dados }) => {
     if (!dados || dados.length === 0) return <div style={{padding:"20px", textAlign:"center", color:"#999"}}>Sem dados para o período</div>;
-    const width = 800; const height = 200; const padding = 20;
-    const maxVal = Math.max(...dados.map(d => d.valor), 1) * 1.1;
+    const width = 800; const height = 250; const padding = 40; // Aumentei altura e padding para caber o texto
+    const maxVal = Math.max(...dados.map(d => d.valor), 1) * 1.2; // 20% de margem no topo
     const points = dados.map((d, i) => {
         const xStep = dados.length > 1 ? (width - 2 * padding) / (dados.length - 1) : 0;
         const x = dados.length > 1 ? padding + (i * xStep) : width / 2;
@@ -108,7 +108,13 @@ const LineChart = ({ dados }) => {
                 {pathD && <path d={pathD} fill="none" stroke="#27ae60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
                 {points.map((p, i) => (
                     <g key={i}>
-                        <circle cx={p.x} cy={p.y} r="6" fill="#27ae60" stroke="white" strokeWidth="2"><title>{`${p.label || p.data}: ${formatarMoeda(p.valor)}`}</title></circle>
+                        <circle cx={p.x} cy={p.y} r="5" fill="#27ae60" stroke="white" strokeWidth="2" />
+                        {/* VALOR EM CIMA DO PONTO */}
+                        <text x={p.x} y={p.y - 15} textAnchor="middle" fontSize="12" fontWeight="bold" fill="#2c3e50">
+                            {formatarMoeda(p.valor)}
+                        </text>
+                        {/* DATA EMBAIXO */}
+                        <text x={p.x} y={height - 10} textAnchor="middle" fontSize="10" fill="#7f8c8d">{p.label}</text>
                     </g>
                 ))}
             </svg>
@@ -116,6 +122,7 @@ const LineChart = ({ dados }) => {
     );
 };
 
+// --- STATS (REDUZIDO PARA NOVO FLUXO) ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
   const hoje = new Date();
   const [dataInicio, setDataInicio] = useState(new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0]);
@@ -131,23 +138,41 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     pedidos.forEach(pedido => {
         const historico = pedido.historicoAcoes || [];
         const histOrdenado = [...historico].sort((a, b) => parseDataSegura(a.timestamp || a.data) - parseDataSegura(b.timestamp || b.data));
-        let tsCriacao = pedido.tsEntrada; let tsVenda = null; let tsProducao = null; 
+        let tsCriacao = pedido.tsEntrada; let tsProducao = null; 
+        
         histOrdenado.forEach(acao => {
             let acaoTs = parseDataSegura(acao.timestamp || acao.data);
             if (acaoTs < inicioTs || acaoTs > fimTs) return;
             const usuario = acao.user || "Sistema";
-            if (!stats[usuario]) stats[usuario] = { leads: 0, vendas: 0, tempoVendaTotal: 0, roteiros: 0, tempoRoteiroTotal: 0, entregas: 0, tempoProducaoTotal: 0 };
+            // Inicializa objeto do usuario
+            if (!stats[usuario]) stats[usuario] = { leads: 0, vendas: 0, tempoVendaTotal: 0, entregas: 0, tempoProducaoTotal: 0 };
+            
             const desc = acao.desc.toUpperCase();
-            if (desc.includes("CRIOU") || desc.includes("LEAD")) { stats[usuario].leads++; if (!tsCriacao) tsCriacao = acaoTs; }
-            if (desc.includes("PENDENTE") || desc.includes("ROTEIRO")) {
-                stats[usuario].vendas++; if (tsCriacao > 0 && acaoTs > tsCriacao) stats[usuario].tempoVendaTotal += (acaoTs - tsCriacao); tsVenda = acaoTs;
-                const valor = Number(pedido.valorRaw || 0); const servico = pedido.servico || "Outros";
+            
+            if (desc.includes("CRIOU") || desc.includes("LEAD")) { 
+                stats[usuario].leads++; 
+                if (!tsCriacao) tsCriacao = acaoTs; 
+            }
+            
+            // AGORA A VENDA CONTA QUANDO VAI PARA PRODUÇÃO
+            if (desc.includes("PRODUÇÃO") || desc.includes("PRODUCAO")) {
+                stats[usuario].vendas++; 
+                if (tsCriacao > 0 && acaoTs > tsCriacao) stats[usuario].tempoVendaTotal += (acaoTs - tsCriacao); 
+                tsProducao = acaoTs;
+                
+                // Contabiliza financeiro aqui
+                const valor = Number(pedido.valorRaw || 0); 
+                const servico = pedido.servico || "Outros";
                 if (financeiro[servico] !== undefined) financeiro[servico] += valor; else financeiro["Outros"] += valor;
                 faturamentoTotal += valor;
                 const diaNormalizado = new Date(acaoTs).setHours(0,0,0,0); vendasRaw[diaNormalizado] = (vendasRaw[diaNormalizado] || 0) + valor;
             }
-            if (desc.includes("PRODUÇÃO") || desc.includes("PRODUCAO")) { stats[usuario].roteiros++; const base = tsVenda || tsCriacao; if (base > 0 && acaoTs > base) stats[usuario].tempoRoteiroTotal += (acaoTs - base); tsProducao = acaoTs; }
-            if (desc.includes("FINALIZADO") || desc.includes("ENTREGUE")) { stats[usuario].entregas++; const base = tsProducao || tsVenda; if (base > 0 && acaoTs > base) stats[usuario].tempoProducaoTotal += (acaoTs - base); }
+            
+            if (desc.includes("FINALIZADO") || desc.includes("ENTREGUE")) { 
+                stats[usuario].entregas++; 
+                const base = tsProducao || tsCriacao; 
+                if (base > 0 && acaoTs > base) stats[usuario].tempoProducaoTotal += (acaoTs - base); 
+            }
         });
     });
 
@@ -161,7 +186,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
         if (!aggregated[key]) aggregated[key] = { label, valor: 0, sortKey: sortVal }; aggregated[key].valor += valor;
     });
 
-    return { operadores: Object.keys(stats).map(nome => ({ nome, ...stats[nome], mediaVenda: stats[nome].vendas ? stats[nome].tempoVendaTotal/stats[nome].vendas : 0, mediaRoteiro: stats[nome].roteiros ? stats[nome].tempoRoteiroTotal/stats[nome].roteiros : 0, mediaProducao: stats[nome].entregas ? stats[nome].tempoProducaoTotal/stats[nome].entregas : 0 })), financeiro, faturamentoTotal, dadosGrafico: Object.values(aggregated).sort((a,b) => a.sortKey - b.sortKey) };
+    return { operadores: Object.keys(stats).map(nome => ({ nome, ...stats[nome], mediaVenda: stats[nome].vendas ? stats[nome].tempoVendaTotal/stats[nome].vendas : 0, mediaProducao: stats[nome].entregas ? stats[nome].tempoProducaoTotal/stats[nome].entregas : 0 })), financeiro, faturamentoTotal, dadosGrafico: Object.values(aggregated).sort((a,b) => a.sortKey - b.sortKey) };
   };
 
   const { operadores, financeiro, faturamentoTotal, dadosGrafico } = calcularMetricas();
@@ -198,10 +223,10 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </div>
             <div style={{background: "white", borderRadius: "8px", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.05)"}}>
                 <table style={{width: "100%", borderCollapse: "collapse", fontSize: "14px"}}>
-                    <thead style={{background: "#2c3e50", color: "white"}}><tr><th style={{padding: "15px", textAlign: "left", width: "20%"}}>Operador</th><th style={{padding: "15px", textAlign: "center", background: "#3498db"}}>Leads Criados</th><th style={{padding: "15px", textAlign: "center", background: "#27ae60"}}>Entrada Lead/Venda<br/><small>(Tempo Médio)</small></th><th style={{padding: "15px", textAlign: "center", background: "#e67e22"}}>Criação da Letra<br/><small>(Tempo Médio)</small></th><th style={{padding: "15px", textAlign: "center", background: "#8e44ad"}}>Criação Final<br/><small>(Tempo Médio)</small></th></tr></thead>
+                    <thead style={{background: "#2c3e50", color: "white"}}><tr><th style={{padding: "15px", textAlign: "left", width: "20%"}}>Operador</th><th style={{padding: "15px", textAlign: "center", background: "#3498db"}}>Leads (Inicio)</th><th style={{padding: "15px", textAlign: "center", background: "#27ae60"}}>Vendas Fechadas<br/><small>(Tempo Negociação/Letra)</small></th><th style={{padding: "15px", textAlign: "center", background: "#8e44ad"}}>Entregas Finais<br/><small>(Tempo Produção)</small></th></tr></thead>
                     <tbody>
                         {operadores.length === 0 && <tr><td colSpan="5" style={{padding: "20px", textAlign: "center"}}>Nenhum dado neste período.</td></tr>}
-                        {operadores.map((d, i) => (<tr key={i} style={{borderBottom: "1px solid #eee", background: i%2===0 ? "white" : "#f9f9f9"}}><td style={{padding: "15px", fontWeight: "bold", color: "#2c3e50"}}>{d.nome}</td><td style={{padding: "15px", textAlign: "center", fontWeight: "bold"}}>{d.leads}</td><td style={{padding: "15px", textAlign: "center"}}><strong style={{color:"#27ae60"}}>{d.vendas}</strong> <small style={{display:"block", color:"#7f8c8d"}}>{formatarDuracaoHoras(d.mediaVenda)}</small></td><td style={{padding: "15px", textAlign: "center"}}><strong style={{color:"#e67e22"}}>{d.roteiros}</strong> <small style={{display:"block", color:"#7f8c8d"}}>{formatarDuracaoHoras(d.mediaRoteiro)}</small></td><td style={{padding: "15px", textAlign: "center"}}><strong style={{color:"#8e44ad"}}>{d.entregas}</strong> <small style={{display:"block", color:"#7f8c8d"}}>{formatarDuracaoHoras(d.mediaProducao)}</small></td></tr>))}
+                        {operadores.map((d, i) => (<tr key={i} style={{borderBottom: "1px solid #eee", background: i%2===0 ? "white" : "#f9f9f9"}}><td style={{padding: "15px", fontWeight: "bold", color: "#2c3e50"}}>{d.nome}</td><td style={{padding: "15px", textAlign: "center", fontWeight: "bold"}}>{d.leads}</td><td style={{padding: "15px", textAlign: "center"}}><strong style={{color:"#27ae60"}}>{d.vendas}</strong> <small style={{display:"block", color:"#7f8c8d"}}>{formatarDuracaoHoras(d.mediaVenda)}</small></td><td style={{padding: "15px", textAlign: "center"}}><strong style={{color:"#8e44ad"}}>{d.entregas}</strong> <small style={{display:"block", color:"#7f8c8d"}}>{formatarDuracaoHoras(d.mediaProducao)}</small></td></tr>))}
                     </tbody>
                 </table>
             </div>
@@ -210,7 +235,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
   );
 };
 
-// --- PAINEL ADMIN EQUIPE ---
+// ... (Paineis AdminTeamPanel e AdminServicesPanel mantidos, estão perfeitos)
 const AdminTeamPanel = ({ voltar }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [novoNome, setNovoNome] = useState("");
@@ -244,7 +269,7 @@ const AdminServicesPanel = ({ servicos, voltar }) => {
     );
 };
 
-// --- APP PRINCIPAL ---
+// --- APP PRINCIPAL (V43 - FLUXO FUNDIDO) ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
       const saved = localStorage.getItem("vislumbre_user");
@@ -288,13 +313,18 @@ export default function App() {
   
   const moverPara = async (id, novoStatus) => {
     const pedido = pedidos.find(p => p.id === id);
-    if (novoStatus === "producao" && !pedido.roteiro) return alert("Roteiro obrigatório!");
+    if (novoStatus === "producao" && !pedido.roteiro) return alert("Roteiro obrigatório antes de aprovar!");
     
     const now = Date.now(); const d = new Date().toLocaleString();
     let updates = { status: novoStatus, historicoAcoes: getNovoHistorico(pedido, `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`) };
     
-    if (novoStatus === "pendentes") { updates.tsVenda = now; updates.dataVenda = d; }
-    if (novoStatus === "producao") { updates.tsProducao = now; updates.dataProducao = d; }
+    // LOGICA NOVA: PULA PENDENTES. VAI DIRETO PARA PRODUÇÃO (Onde acontece a 'Venda')
+    if (novoStatus === "producao") { 
+        updates.tsProducao = now; 
+        updates.dataProducao = d; 
+        // Se quisermos considerar a "Venda" como o momento que vai pra produção:
+        updates.tsVenda = now; // Para manter compatibilidade de stats
+    }
     
     if (novoStatus === "finalizados") { 
         updates.tsSaida = now; updates.dataSaida = d; 
@@ -322,7 +352,7 @@ export default function App() {
   };
 
   const finalizarComWhats = (p) => { window.open(`https://wa.me/55${p.telefone}?text=${encodeURIComponent(`Olá! Seu projeto está pronto.`)}`, "_blank"); moverPara(p.id, "finalizados"); };
-  const gerarRoteiroIA = async (p) => { if (!apiKey) return alert("Configure a API Key!"); setLoadingIA(true); try { const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ contents: [{ parts: [{ text: `Crie um roteiro para ${p.servico}. Cliente: ${p.cliente}. Obs: ${p.obs}` }] }] }) }); const d = await res.json(); const txt = d.candidates?.[0]?.content?.parts?.[0]?.text; if(txt) await updateDoc(doc(db, "pedidos", p.id), { roteiro: txt, historicoAcoes: getNovoHistorico(p, "Gerou Roteiro com IA") }); } catch(e) { alert("Erro IA"); } finally { setLoadingIA(false); } };
+  const gerarRoteiroIA = async (p) => { if (!apiKey) return alert("Configure a API Key!"); setLoadingIA(true); try { const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ contents: [{ parts: [{ text: `Crie um roteiro/letra para ${p.servico}. Cliente: ${p.cliente}. Obs: ${p.obs}` }] }] }) }); const d = await res.json(); const txt = d.candidates?.[0]?.content?.parts?.[0]?.text; if(txt) await updateDoc(doc(db, "pedidos", p.id), { roteiro: txt, historicoAcoes: getNovoHistorico(p, "Gerou Roteiro com IA") }); } catch(e) { alert("Erro IA"); } finally { setLoadingIA(false); } };
 
   const handleResetSystem = async () => {
       const confirm1 = window.confirm("🚨 PERIGO: Isso vai apagar TODOS os pedidos do sistema!\n\nTem certeza que deseja continuar?");
@@ -346,7 +376,13 @@ export default function App() {
   const filterEnd = filtroDataFim ? new Date(filtroDataFim + "T23:59:59.999").getTime() : Infinity;
 
   const listaFiltrada = pedidos.filter(p => {
-      if (p.status !== aba) return false;
+      // Se a aba for LEADS, mostrar leads E os pendentes antigos (para não sumirem)
+      if (aba === "leads") {
+          if (p.status !== "leads" && p.status !== "pendentes") return false;
+      } else {
+          if (p.status !== aba) return false;
+      }
+      
       const matchTexto = (p.cliente && p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) || (p.telefone && p.telefone.includes(termoBusca));
       const pData = p.tsEntrada || 0; 
       const matchData = pData >= filterStart && pData <= filterEnd;
@@ -402,7 +438,8 @@ export default function App() {
             )}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-           {[{id:"leads", l:"Leads"}, {id:"pendentes", l:"Criação da Letra"}, {id:"producao", l:"Criação Final"}, {id:"finalizados", l:"Entregues"}].map(m => (
+           {/* LISTA DE BOTÕES ATUALIZADA - REMOVIDO PENDENTES */}
+           {[{id:"leads", l:"Leads & Criação"}, {id:"producao", l:"Produção"}, {id:"finalizados", l:"Entregues"}].map(m => (
              <button key={m.id} onClick={() => { setAba(m.id); setIdSelecionado(null); }} style={{ background: aba === m.id ? "#f1c40f" : "#34495e", color: aba === m.id ? "#000" : "#bdc3c7", border: "none", padding: "8px 15px", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>{m.l}</button>
            ))}
            <button onClick={handleLogout} style={{background: "#e74c3c", border: "none", color: "white", borderRadius: "4px", cursor: "pointer"}}>Sair</button>
@@ -446,9 +483,8 @@ export default function App() {
                     {pedidoAtivo.status === "finalizados" && (
                         <div style={{marginTop: "30px", padding: "15px", border: "1px solid #ddd", borderRadius: "8px", background: "#fdfdfd"}}>
                             <h3 style={{margin: "0 0 15px 0", color: "#2c3e50"}}>⏱️ Performance deste Pedido</h3>
-                            <div style={{marginBottom: "10px", fontSize: "14px"}}>⬇️ <strong>{getResponsavel(pedidoAtivo.historicoAcoes, "ROTEIRO") || getResponsavel(pedidoAtivo.historicoAcoes, "PENDENTE")}</strong> - <span style={{fontWeight:"bold"}}>Entrada Lead/Venda</span>: <span style={{color:"#2980b9"}}> {calcularDuracao(pedidoAtivo.tsEntrada, pedidoAtivo.tsVenda)} </span></div>
-                            <div style={{marginBottom: "10px", fontSize: "14px"}}>⬇️ <strong>{getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO") || getResponsavel(pedidoAtivo.historicoAcoes, "PRODUCAO")}</strong> - <span style={{fontWeight:"bold"}}>Criação da Letra</span>: <span style={{color:"#e67e22"}}> {calcularDuracao(pedidoAtivo.tsVenda, pedidoAtivo.tsProducao)} </span></div>
-                            <div style={{marginBottom: "10px", fontSize: "14px"}}>⬇️ <strong>{getResponsavel(pedidoAtivo.historicoAcoes, "ENTREGUES") || getResponsavel(pedidoAtivo.historicoAcoes, "FINALIZADO")}</strong> - <span style={{fontWeight:"bold"}}>Criação Final</span>: <span style={{color:"#8e44ad"}}> {calcularDuracao(pedidoAtivo.tsProducao, pedidoAtivo.tsSaida)} </span></div>
+                            <div style={{marginBottom: "10px", fontSize: "14px"}}>⬇️ <strong>{getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO") || getResponsavel(pedidoAtivo.historicoAcoes, "PRODUCAO")}</strong> - <span style={{fontWeight:"bold"}}>Tempo de Negociação/Criação</span>: <span style={{color:"#e67e22"}}> {calcularDuracao(pedidoAtivo.tsEntrada, pedidoAtivo.tsProducao)} </span></div>
+                            <div style={{marginBottom: "10px", fontSize: "14px"}}>⬇️ <strong>{getResponsavel(pedidoAtivo.historicoAcoes, "ENTREGUES") || getResponsavel(pedidoAtivo.historicoAcoes, "FINALIZADO")}</strong> - <span style={{fontWeight:"bold"}}>Tempo de Produção Final</span>: <span style={{color:"#8e44ad"}}> {calcularDuracao(pedidoAtivo.tsProducao, pedidoAtivo.tsSaida)} </span></div>
                             <div style={{marginTop: "15px", paddingTop: "10px", borderTop: "1px dashed #ccc", fontWeight: "bold"}}>Tempo Total de Ciclo: {calcularDuracao(pedidoAtivo.tsEntrada, pedidoAtivo.tsSaida)}</div>
                         </div>
                     )}
