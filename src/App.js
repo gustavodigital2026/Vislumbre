@@ -66,7 +66,7 @@ const parseDataSegura = (valor) => {
   return 0;
 };
 
-// --- LOGIN ---
+// --- LOGIN (COM LOGO EM MOLDURA) ---
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -125,26 +125,59 @@ const LoginScreen = ({ onLogin }) => {
         style={{
           background: "white",
           padding: "40px",
-          borderRadius: "16px",
-          width: "320px",
+          borderRadius: "24px",
+          width: "340px",
           textAlign: "center",
-          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)",
+          boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
         }}
       >
-        <div style={{ fontSize: "40px", marginBottom: "10px" }}>☁️</div>
-        <h2 style={{ color: "#1e293b", marginBottom: "20px" }}>
+        {/* --- ÁREA DA LOGO COM MOLDURA --- */}
+        <div
+          style={{
+            background: "white", // Fundo branco da moldura
+            padding: "15px", // Espaço entre a imagem bege e a borda
+            borderRadius: "16px", // Bordas arredondadas da moldura
+            border: "1px solid #e2e8f0", // Borda cinza suave
+            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)", // Sombra suave
+            display: "inline-block", // Faz a moldura abraçar a imagem
+            marginBottom: "15px", // Espaço menor abaixo da moldura
+          }}
+        >
+          <img
+            src="/logo.jpeg" /* Certifique-se que o nome do arquivo na pasta public está igual */
+            alt="Vislumbre Logo"
+            style={{
+              maxWidth: "210px",
+              maxHeight: "210px",
+              borderRadius: "8px", // Arredonda levemente os cantos da imagem bege
+              display: "block", // Remove espaços extras
+            }}
+          />
+        </div>
+        {/* -------------------------------- */}
+
+        <h2
+          style={{
+            color: "#1e293b",
+            margin: "0 0 25px 0",
+            fontSize: "22px",
+            fontWeight: "700",
+          }}
+        >
           Vislumbre CRM
         </h2>
+
         <div className="input-group">
           <input
             className="modern-input"
-            placeholder="Login"
+            placeholder="Usuário"
             value={user}
             onKeyDown={handleKeyDown}
             onChange={(e) => setUser(e.target.value)}
+            style={{ padding: "14px" }}
           />
         </div>
-        <div className="input-group">
+        <div className="input-group" style={{ marginBottom: "25px" }}>
           <input
             className="modern-input"
             type="password"
@@ -152,21 +185,32 @@ const LoginScreen = ({ onLogin }) => {
             value={pass}
             onKeyDown={handleKeyDown}
             onChange={(e) => setPass(e.target.value)}
+            style={{ padding: "14px" }}
           />
         </div>
+
         {error && (
           <p
-            style={{ color: "#ef4444", fontSize: "13px", marginBottom: "15px" }}
+            style={{
+              color: "#ef4444",
+              fontSize: "13px",
+              marginBottom: "15px",
+              background: "#fef2f2",
+              padding: "8px",
+              borderRadius: "6px",
+            }}
           >
             {error}
           </p>
         )}
+
         <button
           onClick={handleLogin}
           disabled={loading}
           className="btn-primary"
+          style={{ padding: "14px", fontSize: "16px" }}
         >
-          {loading ? "Entrando..." : "Acessar Sistema"}
+          {loading ? "Verificando..." : "Entrar no Sistema"}
         </button>
       </div>
     </div>
@@ -1270,9 +1314,21 @@ export default function App() {
         }}
       >
         <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
-            ☁️ Vislumbre
-          </h2>
+          {/* LOGO NO MENU (PEQUENA) */}
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <img
+              src="/logo.jpeg"
+              alt="Logo"
+              style={{
+                height: "40px",
+                borderRadius: "4px",
+                marginRight: "10px",
+              }}
+            />
+            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
+              Vislumbre
+            </h2>
+          </div>
           <span
             style={{
               fontSize: "11px",
