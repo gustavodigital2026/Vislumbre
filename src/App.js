@@ -219,18 +219,22 @@ const LoginScreen = ({ onLogin }) => {
   );
 };
 
-// --- GRÁFICO ---
+// --- GRÁFICO (COM TOOLTIP INTERATIVO) ---
 const LineChart = ({ dados }) => {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
   if (!dados || dados.length === 0)
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
         Sem dados suficientes.
       </div>
     );
+
   const width = 800;
   const height = 250;
   const padding = 40;
   const maxVal = Math.max(...dados.map((d) => d.valor), 1) * 1.2;
+
   const points = dados.map((d, i) => {
     const xStep =
       dados.length > 1 ? (width - 2 * padding) / (dados.length - 1) : 0;
@@ -238,15 +242,22 @@ const LineChart = ({ dados }) => {
     const y = height - padding - (d.valor / maxVal) * (height - 2 * padding);
     return { x, y, ...d };
   });
+
   const pathD =
     points.length > 1
       ? points
           .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
           .join(" ")
       : "";
+
   return (
     <div style={{ width: "100%", overflowX: "auto", marginTop: "10px" }}>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ overflow: "visible" }}
+      >
         <line
           x1={padding}
           y1={height - padding}
@@ -265,45 +276,75 @@ const LineChart = ({ dados }) => {
             strokeLinejoin="round"
           />
         )}
+
         {points.map((p, i) => (
           <g key={i}>
+            {/* Área de toque maior (invisível) para facilitar o mouse */}
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r="15"
+              fill="transparent"
+              onMouseEnter={() => setHoveredPoint(p)}
+              onMouseLeave={() => setHoveredPoint(null)}
+              style={{ cursor: "pointer" }}
+            />
+            {/* Bolinha visível */}
             <circle
               cx={p.x}
               cy={p.y}
               r="6"
-              fill="#3b82f6"
+              fill={hoveredPoint === p ? "#2563eb" : "#3b82f6"}
               stroke="white"
               strokeWidth="3"
+              style={{ pointerEvents: "none" }}
             />
-            <text
-              x={p.x}
-              y={p.y - 15}
-              textAnchor="middle"
-              fontSize="12"
-              fontWeight="bold"
-              fill="#1e293b"
-            >
-              {formatarMoeda(p.valor)}
-            </text>
-            <text
-              x={p.x}
-              y={height - 10}
-              textAnchor="middle"
-              fontSize="11"
-              fill="#64748b"
-            >
-              {p.label}
-            </text>
           </g>
         ))}
+
+        {/* TOOLTIP FLUTUANTE */}
+        {hoveredPoint && (
+          <g transform={`translate(${hoveredPoint.x}, ${hoveredPoint.y - 60})`}>
+            <rect
+              x="-60"
+              y="0"
+              width="120"
+              height="50"
+              rx="8"
+              fill="#1e293b"
+              opacity="0.9"
+            />
+            <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11">
+              {hoveredPoint.label}
+            </text>
+            <text
+              x="0"
+              y="38"
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize="14"
+              fontWeight="bold"
+            >
+              {formatarMoeda(hoveredPoint.valor)}
+            </text>
+            {/* Triângulo apontando pra baixo */}
+            <path d="M -6 50 L 6 50 L 0 56 Z" fill="#1e293b" opacity="0.9" />
+          </g>
+        )}
       </svg>
     </div>
   );
 };
 
-// --- ESTATÍSTICAS (TABELA CORRIGIDA) ---
+// --- ESTATÍSTICAS ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
-  const [dataInicio, setDataInicio] = useState("2023-01-01");
+  // CONFIGURAÇÃO DA DATA PADRÃO (10 DIAS ATRÁS)
+  const [dataInicio, setDataInicio] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 10);
+    return d.toISOString().split("T")[0];
+  });
+
   const [dataFim, setDataFim] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -1320,28 +1361,18 @@ export default function App() {
   const listaFiltrada = pedidos.filter((p) => {
     const statusP = normalizar(p.status);
     const abaNorm = normalizar(aba);
-
     let statusMatch = false;
     if (abaNorm === "leads") {
       statusMatch = statusP === "leads" || statusP === "pendentes";
     } else {
       statusMatch = statusP === abaNorm;
     }
-
     const matchTexto =
       !termoBusca ||
       (p.cliente && normalizar(p.cliente).includes(normalizar(termoBusca))) ||
       (p.telefone && p.telefone.includes(termoBusca));
-
     const pData = p.tsEntrada || 0;
-    const fStart = filtroDataInicio
-      ? new Date(filtroDataInicio + "T00:00:00").getTime()
-      : 0;
-    const fEnd = filtroDataFim
-      ? new Date(filtroDataFim + "T23:59:59").getTime()
-      : Infinity;
-    const dataMatch = pData >= fStart && pData <= fEnd;
-
+    const dataMatch = pData >= filterStart && pData <= filterEnd;
     return statusMatch && matchTexto && dataMatch;
   });
 
