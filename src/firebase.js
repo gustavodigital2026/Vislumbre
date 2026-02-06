@@ -1,8 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // <--- NOVO
+import { getStorage } from "firebase/storage";
 
-// MANTENHA SUAS CHAVES AQUI (Não apague o que você já configurou)
 const firebaseConfig = {
   apiKey: "AIzaSyAA30KuXwW1y5xhQuSZGI7VTcOrQVeEu5w", // Substitua pelo seu
   authDomain: "vislumbrecrm.firebaseapp.com", // Substitua pelo seu
@@ -13,5 +12,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const storage = getStorage(app); // <--- Exporta o Storage
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+export { db, storage };
