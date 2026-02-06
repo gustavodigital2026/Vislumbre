@@ -20,7 +20,7 @@ import {
 import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
-import "./styles.css";
+import "./styles.css"; // Garanta que o CSS está importado!
 
 // --- UTILITÁRIOS ---
 const mapearStatus = (s) => {
@@ -115,7 +115,7 @@ const LoginScreen = ({ onLogin }) => {
     <div
       style={{
         height: "100vh",
-        background: "#2c3e50",
+        background: "#f1f5f9",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -125,55 +125,48 @@ const LoginScreen = ({ onLogin }) => {
         style={{
           background: "white",
           padding: "40px",
-          borderRadius: "10px",
-          width: "300px",
+          borderRadius: "16px",
+          width: "320px",
           textAlign: "center",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)",
         }}
       >
-        <h2 style={{ color: "#2c3e50" }}>Vislumbre CRM 🔒</h2>
-        <input
-          placeholder="Login"
-          value={user}
-          onKeyDown={handleKeyDown}
-          onChange={(e) => setUser(e.target.value)}
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "10px",
-            marginBottom: "10px",
-            boxSizing: "border-box",
-          }}
-        />
-        <input
-          type="password"
-          placeholder="Senha"
-          value={pass}
-          onKeyDown={handleKeyDown}
-          onChange={(e) => setPass(e.target.value)}
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "10px",
-            marginBottom: "20px",
-            boxSizing: "border-box",
-          }}
-        />
-        {error && <p style={{ color: "red", fontSize: "12px" }}>{error}</p>}
+        <div style={{ fontSize: "40px", marginBottom: "10px" }}>☁️</div>
+        <h2 style={{ color: "#1e293b", marginBottom: "20px" }}>
+          Vislumbre CRM
+        </h2>
+        <div className="input-group">
+          <input
+            className="modern-input"
+            placeholder="Login"
+            value={user}
+            onKeyDown={handleKeyDown}
+            onChange={(e) => setUser(e.target.value)}
+          />
+        </div>
+        <div className="input-group">
+          <input
+            className="modern-input"
+            type="password"
+            placeholder="Senha"
+            value={pass}
+            onKeyDown={handleKeyDown}
+            onChange={(e) => setPass(e.target.value)}
+          />
+        </div>
+        {error && (
+          <p
+            style={{ color: "#ef4444", fontSize: "13px", marginBottom: "15px" }}
+          >
+            {error}
+          </p>
+        )}
         <button
           onClick={handleLogin}
           disabled={loading}
-          style={{
-            width: "100%",
-            padding: "10px",
-            background: "#27ae60",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
+          className="btn-primary"
         >
-          {loading ? "..." : "ENTRAR"}
+          {loading ? "Entrando..." : "Acessar Sistema"}
         </button>
       </div>
     </div>
@@ -184,8 +177,8 @@ const LoginScreen = ({ onLogin }) => {
 const LineChart = ({ dados }) => {
   if (!dados || dados.length === 0)
     return (
-      <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
-        Sem dados para o período
+      <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
+        Sem dados suficientes para gerar o gráfico.
       </div>
     );
   const width = 800;
@@ -206,21 +199,21 @@ const LineChart = ({ dados }) => {
           .join(" ")
       : "";
   return (
-    <div style={{ width: "100%", overflowX: "auto", marginTop: "20px" }}>
+    <div style={{ width: "100%", overflowX: "auto", marginTop: "10px" }}>
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         <line
           x1={padding}
           y1={height - padding}
           x2={width - padding}
           y2={height - padding}
-          stroke="#eee"
+          stroke="#e2e8f0"
           strokeWidth="2"
         />
         {pathD && (
           <path
             d={pathD}
             fill="none"
-            stroke="#27ae60"
+            stroke="#3b82f6"
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -231,10 +224,10 @@ const LineChart = ({ dados }) => {
             <circle
               cx={p.x}
               cy={p.y}
-              r="5"
-              fill="#27ae60"
+              r="6"
+              fill="#3b82f6"
               stroke="white"
-              strokeWidth="2"
+              strokeWidth="3"
             />
             <text
               x={p.x}
@@ -242,7 +235,7 @@ const LineChart = ({ dados }) => {
               textAnchor="middle"
               fontSize="12"
               fontWeight="bold"
-              fill="#2c3e50"
+              fill="#1e293b"
             >
               {formatarMoeda(p.valor)}
             </text>
@@ -250,8 +243,8 @@ const LineChart = ({ dados }) => {
               x={p.x}
               y={height - 10}
               textAnchor="middle"
-              fontSize="10"
-              fill="#7f8c8d"
+              fontSize="11"
+              fill="#64748b"
             >
               {p.label}
             </text>
@@ -262,7 +255,7 @@ const LineChart = ({ dados }) => {
   );
 };
 
-// --- STATS ---
+// --- ESTATÍSTICAS (DESIGN MELHORADO) ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
   const hoje = new Date();
   const [dataInicio, setDataInicio] = useState(
@@ -307,6 +300,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
         let acaoTs = parseDataSegura(acao.timestamp || acao.data);
         if (acaoTs < inicioTs || acaoTs > fimTs) return;
         const usuario = acao.user || "Sistema";
+
         if (!stats[usuario])
           stats[usuario] = {
             leads: 0,
@@ -316,6 +310,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             tempoProducaoTotal: 0,
           };
         const desc = acao.desc.toUpperCase();
+
         if (desc.includes("CRIOU") || desc.includes("LEAD")) {
           stats[usuario].leads++;
           if (!tsCriacao) tsCriacao = acaoTs;
@@ -325,6 +320,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
           if (tsCriacao > 0 && acaoTs > tsCriacao)
             stats[usuario].tempoVendaTotal += acaoTs - tsCriacao;
           tsProducao = acaoTs;
+
           const valor = Number(pedido.valorRaw || 0);
           const servico = pedido.servico || "Outros";
           if (financeiro[servico] !== undefined) financeiro[servico] += valor;
@@ -420,14 +416,14 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
   const { operadores, financeiro, faturamentoTotal, dadosGrafico } =
     calcularMetricas();
   const gerarGraficoPizza = () => {
-    if (faturamentoTotal === 0) return "conic-gradient(#ccc 0% 100%)";
+    if (faturamentoTotal === 0) return "conic-gradient(#e2e8f0 0% 100%)";
     let acumulado = 0;
     const segmentos = Object.keys(financeiro)
       .map((key) => {
         const valor = financeiro[key];
         if (valor === 0) return null;
         const servicoObj = servicos.find((s) => s.nome === key);
-        const cor = servicoObj ? servicoObj.cor : "#95a5a6";
+        const cor = servicoObj ? servicoObj.cor : "#94a3b8";
         const porcentagem = (valor / faturamentoTotal) * 100;
         const inicio = acumulado;
         acumulado += porcentagem;
@@ -438,310 +434,205 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
   };
 
   return (
-    <div
-      style={{
-        padding: "30px",
-        background: "#f4f6f8",
-        height: "100vh",
-        overflowY: "auto",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "30px",
-            background: "white",
-            padding: "15px",
-            borderRadius: "8px",
-            boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, color: "#2c3e50" }}>📊 Estatísticas</h2>
-          </div>
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">📊 Estatísticas & Performance</h2>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <label style={{ fontSize: "12px", fontWeight: "bold" }}>De:</label>
             <input
               type="date"
               value={dataInicio}
               onChange={(e) => setDataInicio(e.target.value)}
-              style={{
-                padding: "5px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
+              className="modern-input"
+              style={{ width: "140px" }}
             />
-            <label style={{ fontSize: "12px", fontWeight: "bold" }}>Até:</label>
+            <span style={{ color: "#94a3b8" }}>até</span>
             <input
               type="date"
               value={dataFim}
               onChange={(e) => setDataFim(e.target.value)}
-              style={{
-                padding: "5px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-              }}
+              className="modern-input"
+              style={{ width: "140px" }}
             />
-            <button
-              onClick={voltar}
-              style={{
-                padding: "8px 15px",
-                background: "#95a5a6",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                marginLeft: "10px",
-              }}
-            >
-              Sair
+            <button onClick={voltar} className="btn-back">
+              Voltar
             </button>
           </div>
         </div>
+
+        {/* KPI CARDS */}
+        <div className="stats-kpi-grid">
+          <div className="kpi-card">
+            <div className="kpi-title">Faturamento Total</div>
+            <div className="kpi-value" style={{ color: "#22c55e" }}>
+              {formatarMoeda(faturamentoTotal)}
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-title">Leads Criados</div>
+            <div className="kpi-value" style={{ color: "#3b82f6" }}>
+              {operadores.reduce((acc, op) => acc + op.leads, 0)}
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-title">Vendas Fechadas</div>
+            <div className="kpi-value" style={{ color: "#8b5cf6" }}>
+              {operadores.reduce((acc, op) => acc + op.vendas, 0)}
+            </div>
+          </div>
+        </div>
+
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "20px",
+            gridTemplateColumns: "2fr 1fr",
+            gap: "24px",
             marginBottom: "30px",
           }}
         >
-          <div
-            style={{
-              background: "white",
-              padding: "20px",
-              borderRadius: "8px",
-              boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                color: "#27ae60",
-                borderBottom: "1px solid #eee",
-                paddingBottom: "10px",
-              }}
-            >
-              💰 Faturamento
-            </h3>
-            {Object.keys(financeiro).map((k) => (
+          <div className="card-panel">
+            <div className="card-header">
               <div
-                key={k}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  marginBottom: "10px",
+                  alignItems: "center",
                 }}
               >
-                <span>{k}</span>
-                <strong>{formatarMoeda(financeiro[k])}</strong>
+                <span>📈 Evolução do Faturamento</span>
+                <div style={{ display: "flex", gap: "5px" }}>
+                  {["dia", "semana", "mes"].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setViewMode(m)}
+                      style={{
+                        padding: "4px 8px",
+                        border: viewMode === m ? "none" : "1px solid #e2e8f0",
+                        background: viewMode === m ? "#3b82f6" : "white",
+                        color: viewMode === m ? "white" : "#64748b",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginTop: "15px",
-                paddingTop: "10px",
-                borderTop: "2px dashed #ddd",
-                fontSize: "18px",
-              }}
-            >
-              <strong>TOTAL</strong>
-              <strong style={{ color: "#27ae60" }}>
-                {formatarMoeda(faturamentoTotal)}
-              </strong>
             </div>
+            <LineChart dados={dadosGrafico} />
           </div>
           <div
+            className="card-panel"
             style={{
-              background: "white",
-              padding: "20px",
-              borderRadius: "8px",
-              boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "space-around",
+              justifyContent: "center",
             }}
           >
+            <h3
+              className="card-header"
+              style={{
+                width: "100%",
+                textAlign: "center",
+                borderBottom: "none",
+              }}
+            >
+              Distribuição
+            </h3>
             <div
               style={{
-                width: "150px",
-                height: "150px",
+                width: "160px",
+                height: "160px",
                 borderRadius: "50%",
                 background: gerarGraficoPizza(),
-                border: "4px solid white",
-                boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+                marginBottom: "20px",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
               }}
             ></div>
-            <div style={{ fontSize: "13px" }}>
+            <div style={{ width: "100%" }}>
               {servicos.map((s) => (
-                <div key={s.id} style={{ marginBottom: "5px" }}>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "10px",
-                      height: "10px",
-                      background: s.cor,
-                      marginRight: "5px",
-                    }}
-                  ></span>
-                  {s.nome}
+                <div
+                  key={s.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    marginBottom: "8px",
+                    color: "#475569",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                    <span
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        background: s.cor,
+                        marginRight: "8px",
+                      }}
+                    ></span>
+                    {s.nome}
+                  </span>
+                  <span style={{ fontWeight: "bold" }}>
+                    {formatarMoeda(financeiro[s.nome])}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div
-          style={{
-            background: "white",
-            borderRadius: "8px",
-            padding: "20px",
-            marginBottom: "30px",
-            boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <h3 style={{ marginTop: 0, color: "#2c3e50" }}>📈 Evolução</h3>
-            <div style={{ display: "flex", gap: "5px" }}>
-              {["dia", "semana", "mes", "ano"].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setViewMode(m)}
-                  style={{
-                    padding: "5px 10px",
-                    border: "1px solid #2980b9",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    background: viewMode === m ? "#2980b9" : "white",
-                    color: viewMode === m ? "white" : "#2980b9",
-                    textTransform: "capitalize",
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {m === "mes" ? "Mês" : m}
-                </button>
-              ))}
-            </div>
-          </div>
-          <LineChart dados={dadosGrafico} />
-        </div>
-        <div
-          style={{
-            background: "white",
-            borderRadius: "8px",
-            overflow: "hidden",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-          }}
-        >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "14px",
-            }}
-          >
-            <thead style={{ background: "#2c3e50", color: "white" }}>
-              <tr>
-                <th
-                  style={{ padding: "15px", textAlign: "left", width: "20%" }}
-                >
-                  Operador
-                </th>
-                <th
-                  style={{
-                    padding: "15px",
-                    textAlign: "center",
-                    background: "#3498db",
-                  }}
-                >
-                  Leads (Inicio)
-                </th>
-                <th
-                  style={{
-                    padding: "15px",
-                    textAlign: "center",
-                    background: "#27ae60",
-                  }}
-                >
-                  Vendas Fechadas
-                  <br />
-                  <small>(Tempo Negociação/Letra)</small>
-                </th>
-                <th
-                  style={{
-                    padding: "15px",
-                    textAlign: "center",
-                    background: "#8e44ad",
-                  }}
-                >
-                  Entregas Finais
-                  <br />
-                  <small>(Tempo Produção)</small>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {operadores.map((d, i) => (
-                <tr
-                  key={i}
-                  style={{
-                    borderBottom: "1px solid #eee",
-                    background: i % 2 === 0 ? "white" : "#f9f9f9",
-                  }}
-                >
-                  <td
-                    style={{
-                      padding: "15px",
-                      fontWeight: "bold",
-                      color: "#2c3e50",
-                    }}
-                  >
-                    {d.nome}
-                  </td>
-                  <td
-                    style={{
-                      padding: "15px",
-                      textAlign: "center",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {d.leads}
-                  </td>
-                  <td style={{ padding: "15px", textAlign: "center" }}>
-                    <strong style={{ color: "#27ae60" }}>{d.vendas}</strong>{" "}
-                    <small style={{ display: "block", color: "#7f8c8d" }}>
-                      {formatarDuracaoHoras(d.mediaVenda)}
-                    </small>
-                  </td>
-                  <td style={{ padding: "15px", textAlign: "center" }}>
-                    <strong style={{ color: "#8e44ad" }}>{d.entregas}</strong>{" "}
-                    <small style={{ display: "block", color: "#7f8c8d" }}>
-                      {formatarDuracaoHoras(d.mediaProducao)}
-                    </small>
-                  </td>
+
+        <div className="card-panel">
+          <div className="card-header">🏆 Performance da Equipe</div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="modern-table">
+              <thead>
+                <tr>
+                  <th>Operador</th>
+                  <th style={{ textAlign: "center" }}>Leads</th>
+                  <th style={{ textAlign: "center" }}>Vendas</th>
+                  <th style={{ textAlign: "center" }}>Tempo (Negociação)</th>
+                  <th style={{ textAlign: "center" }}>Tempo (Produção)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {operadores.map((d, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: "600", color: "#1e293b" }}>
+                      {d.nome}
+                    </td>
+                    <td style={{ textAlign: "center" }}>{d.leads}</td>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        color: "#22c55e",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {d.vendas}
+                    </td>
+                    <td style={{ textAlign: "center", color: "#64748b" }}>
+                      {formatarDuracaoHoras(d.mediaVenda)}
+                    </td>
+                    <td style={{ textAlign: "center", color: "#64748b" }}>
+                      {formatarDuracaoHoras(d.mediaProducao)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// --- PAINEIS ADMIN (Team, Services, e agora GENERAL) ---
+// --- GESTÃO DE EQUIPE (DESIGN CARD) ---
 const AdminTeamPanel = ({ voltar }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [novoNome, setNovoNome] = useState("");
@@ -765,362 +656,245 @@ const AdminTeamPanel = ({ voltar }) => {
     setNovoNome("");
     setNovoLogin("");
     setNovaSenha("");
-    alert("Usuário criado!");
   };
   const removerUsuario = async (id) => {
-    if (window.confirm("Remover?")) await deleteDoc(doc(db, "usuarios", id));
+    if (window.confirm("Remover usuário?"))
+      await deleteDoc(doc(db, "usuarios", id));
   };
   const toggleStats = async (id, statusAtual) => {
     await updateDoc(doc(db, "usuarios", id), { acessoStats: !statusAtual });
   };
   return (
-    <div
-      style={{
-        padding: "40px",
-        background: "#ecf0f1",
-        height: "100vh",
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "20px",
-          }}
-        >
-          <h2>Gestão de Equipe</h2>
-          <button onClick={voltar}>Voltar</button>
-        </div>
-        <div
-          style={{
-            background: "white",
-            padding: "20px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-          }}
-        >
-          <h4>Novo Usuário</h4>
-          <input
-            placeholder="Nome"
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "8px",
-              marginBottom: "10px",
-            }}
-          />
-          <input
-            placeholder="Login"
-            value={novoLogin}
-            onChange={(e) => setNovoLogin(e.target.value)}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "8px",
-              marginBottom: "10px",
-            }}
-          />
-          <input
-            placeholder="Senha"
-            value={novaSenha}
-            onChange={(e) => setNovaSenha(e.target.value)}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "8px",
-              marginBottom: "10px",
-            }}
-          />
-          <button
-            onClick={adicionarUsuario}
-            style={{
-              width: "100%",
-              padding: "10px",
-              background: "#2980b9",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Cadastrar
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">👥 Gestão de Equipe</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
           </button>
         </div>
-        {usuarios.map((u) => (
-          <div
-            key={u.id}
-            style={{
-              background: "white",
-              padding: "10px",
-              marginBottom: "5px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <strong>{u.nome}</strong> ({u.login})
-            </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <label
-                style={{
-                  fontSize: "11px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={u.acessoStats || false}
-                  onChange={() => toggleStats(u.id, u.acessoStats)}
-                />{" "}
-                Ver Stats
-              </label>
+
+        <div className="grid-cards" style={{ marginBottom: "40px" }}>
+          {usuarios.map((u) => (
+            <div key={u.id} className="item-card">
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <div className="user-avatar">
+                  {u.nome.charAt(0).toUpperCase()}
+                </div>
+                <div className="item-info">
+                  <h4 className="item-title">{u.nome}</h4>
+                  <p className="item-subtitle">Login: {u.login}</p>
+                  <label
+                    style={{
+                      fontSize: "11px",
+                      marginTop: "5px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      cursor: "pointer",
+                      color: u.acessoStats ? "#3b82f6" : "#94a3b8",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={u.acessoStats || false}
+                      onChange={() => toggleStats(u.id, u.acessoStats)}
+                    />{" "}
+                    Acesso a Stats
+                  </label>
+                </div>
+              </div>
               <button
                 onClick={() => removerUsuario(u.id)}
-                style={{
-                  color: "red",
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                }}
+                className="btn-icon-delete"
               >
-                X
+                ×
               </button>
             </div>
+          ))}
+        </div>
+
+        <div
+          className="card-panel"
+          style={{ maxWidth: "500px", margin: "0 auto" }}
+        >
+          <div className="card-header">✨ Adicionar Novo Membro</div>
+          <div className="input-group">
+            <label className="input-label">Nome Completo</label>
+            <input
+              className="modern-input"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              placeholder="Ex: João Silva"
+            />
           </div>
-        ))}
+          <div className="input-group">
+            <label className="input-label">Login de Acesso</label>
+            <input
+              className="modern-input"
+              value={novoLogin}
+              onChange={(e) => setNovoLogin(e.target.value)}
+              placeholder="Ex: joao"
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Senha</label>
+            <input
+              className="modern-input"
+              type="password"
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
+              placeholder="******"
+            />
+          </div>
+          <button onClick={adicionarUsuario} className="btn-primary">
+            Cadastrar Usuário
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
+// --- GESTÃO DE SERVIÇOS (DESIGN CARD) ---
 const AdminServicesPanel = ({ servicos, voltar }) => {
   const [nome, setNome] = useState("");
-  const [cor, setCor] = useState("#3498db");
+  const [cor, setCor] = useState("#3b82f6");
   const adicionar = async () => {
     if (!nome) return alert("Digite o nome");
     await addDoc(collection(db, "servicos"), { nome, cor });
     setNome("");
   };
   const remover = async (id) => {
-    if (window.confirm("Remover?")) await deleteDoc(doc(db, "servicos", id));
+    if (window.confirm("Remover serviço?"))
+      await deleteDoc(doc(db, "servicos", id));
   };
   return (
-    <div
-      style={{
-        padding: "40px",
-        background: "#ecf0f1",
-        height: "100vh",
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "20px",
-          }}
-        >
-          <h2>🛠️ Gerenciar Serviços</h2>
-          <button onClick={voltar}>Voltar</button>
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">🛠️ Catálogo de Serviços</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
         </div>
+
+        <div className="grid-cards" style={{ marginBottom: "40px" }}>
+          {servicos.map((s) => (
+            <div
+              key={s.id}
+              className="item-card"
+              style={{ borderLeft: `5px solid ${s.cor}` }}
+            >
+              <div className="item-info">
+                <h4 className="item-title">{s.nome}</h4>
+                <p
+                  className="item-subtitle"
+                  style={{ display: "flex", alignItems: "center", gap: "5px" }}
+                >
+                  <span
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      background: s.cor,
+                    }}
+                  ></span>
+                  {s.cor}
+                </p>
+              </div>
+              <button onClick={() => remover(s.id)} className="btn-icon-delete">
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
         <div
-          style={{
-            background: "white",
-            padding: "20px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-          }}
+          className="card-panel"
+          style={{ maxWidth: "500px", margin: "0 auto" }}
         >
-          <h4>Adicionar Novo Serviço</h4>
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="card-header">➕ Novo Serviço</div>
+          <div className="input-group">
+            <label className="input-label">Nome do Serviço</label>
             <input
-              placeholder="Nome (ex: Social Media)"
+              className="modern-input"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              style={{ flex: 1, padding: "10px" }}
+              placeholder="Ex: Gestão de Tráfego"
             />
-            <input
-              type="color"
-              value={cor}
-              onChange={(e) => setCor(e.target.value)}
-              style={{ height: "40px", width: "50px" }}
-            />
-            <button
-              onClick={adicionar}
-              style={{
-                background: "#27ae60",
-                color: "white",
-                border: "none",
-                padding: "0 15px",
-                borderRadius: "4px",
-              }}
-            >
-              Salvar
-            </button>
           </div>
+          <div className="input-group">
+            <label className="input-label">Cor de Identificação</label>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <input
+                type="color"
+                value={cor}
+                onChange={(e) => setCor(e.target.value)}
+                style={{
+                  height: "40px",
+                  width: "60px",
+                  border: "none",
+                  background: "none",
+                }}
+              />
+              <span style={{ fontSize: "13px", color: "#64748b" }}>
+                Clique para escolher
+              </span>
+            </div>
+          </div>
+          <button onClick={adicionar} className="btn-primary">
+            Salvar Serviço
+          </button>
         </div>
-        {servicos.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              background: "white",
-              padding: "10px",
-              marginBottom: "5px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderLeft: `5px solid ${s.cor}`,
-            }}
-          >
-            <strong>{s.nome}</strong>
-            <button
-              onClick={() => remover(s.id)}
-              style={{
-                color: "red",
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-              }}
-            >
-              X
-            </button>
-          </div>
-        ))}
       </div>
     </div>
   );
 };
 
-// --- NOVO PAINEL: DEFINIÇÕES GERAIS ---
+// --- DEFINIÇÕES GERAIS (DESIGN CARD) ---
 const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
   return (
-    <div
-      style={{
-        padding: "40px",
-        background: "#ecf0f1",
-        height: "100vh",
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "20px",
-          }}
-        >
-          <h2>⚙️ Definições Gerais</h2>
-          <button onClick={voltar}>Voltar</button>
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">⚙️ Definições do Sistema</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
         </div>
 
-        <div
-          style={{
-            background: "white",
-            padding: "25px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              borderBottom: "1px solid #eee",
-              paddingBottom: "10px",
-              color: "#2c3e50",
-            }}
-          >
-            🤖 Inteligência Artificial (Google Gemini)
-          </h3>
-          <p style={{ fontSize: "13px", color: "#7f8c8d" }}>
-            Configure aqui a chave de acesso para gerar roteiros automáticos.
-          </p>
-          <label
-            style={{
-              display: "block",
-              fontWeight: "bold",
-              marginBottom: "5px",
-            }}
-          >
-            API Key:
-          </label>
-          <input
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            type="password"
-            placeholder="Cole sua API Key aqui..."
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "5px",
-              border: "1px solid #ccc",
-              boxSizing: "border-box",
-            }}
-          />
+        <div className="card-panel">
+          <div className="card-header">🤖 Inteligência Artificial (Gemini)</div>
+          <div className="input-group">
+            <label className="input-label">Google API Key</label>
+            <input
+              className="modern-input"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Cole sua chave (AIzaSy...)"
+            />
+            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+              Necessário para gerar roteiros automáticos na tela de pedidos.
+            </p>
+          </div>
         </div>
 
-        <div
-          style={{
-            background: "white",
-            padding: "25px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 5px rgba(0,0,0,0.05)",
-          }}
-        >
-          <h3
-            style={{
-              marginTop: 0,
-              borderBottom: "1px solid #eee",
-              paddingBottom: "10px",
-              color: "#2c3e50",
-            }}
-          >
-            ⏰ Reativação de Leads
-          </h3>
-          <p style={{ fontSize: "13px", color: "#7f8c8d" }}>
-            Defina após quantas horas sem interação um Lead antigo deve mostrar
-            o botão "Reativar".
-          </p>
-          <label
-            style={{
-              display: "block",
-              fontWeight: "bold",
-              marginBottom: "5px",
-            }}
-          >
-            Tempo (em Horas):
-          </label>
-          <input
-            type="number"
-            value={horas}
-            onChange={(e) => setHoras(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "5px",
-              border: "1px solid #ccc",
-              boxSizing: "border-box",
-            }}
-          />
-          <div
-            style={{
-              marginTop: "10px",
-              fontSize: "12px",
-              color: "#27ae60",
-              fontWeight: "bold",
-            }}
-          >
-            ℹ️ Atualmente: {horas} horas ({horas / 24} dias).
+        <div className="card-panel">
+          <div className="card-header">⏰ Automação de Leads</div>
+          <div className="input-group">
+            <label className="input-label">Tempo para Reativação (Horas)</label>
+            <input
+              className="modern-input"
+              type="number"
+              value={horas}
+              onChange={(e) => setHoras(e.target.value)}
+            />
+            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+              Se um lead ficar parado por mais de <strong>{horas} horas</strong>
+              , o botão "Reativar" aparecerá.
+            </p>
           </div>
         </div>
       </div>
@@ -1134,12 +908,10 @@ export default function App() {
     const saved = localStorage.getItem("vislumbre_user");
     return saved ? JSON.parse(saved) : null;
   });
-
   const [aba, setAba] = useState("leads");
   const [pedidos, setPedidos] = useState([]);
   const [servicos, setServicos] = useState([]);
 
-  // ESTADOS GERAIS (Carregam do LocalStorage)
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("vislumbre_google_key") || ""
   );
@@ -1154,7 +926,6 @@ export default function App() {
   const [loadingIA, setLoadingIA] = useState(false);
   const [idSelecionado, setIdSelecionado] = useState(null);
   const [novoTel, setNovoTel] = useState("");
-
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
@@ -1177,14 +948,13 @@ export default function App() {
     const unsub = onSnapshot(collection(db, "servicos"), (snap) => {
       const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (lista.length === 0) {
-        addDoc(collection(db, "servicos"), { nome: "Jingle", cor: "#e67e22" });
-        addDoc(collection(db, "servicos"), { nome: "Vídeo", cor: "#3498db" });
+        addDoc(collection(db, "servicos"), { nome: "Jingle", cor: "#f59e0b" });
+        addDoc(collection(db, "servicos"), { nome: "Vídeo", cor: "#3b82f6" });
       } else setServicos(lista);
     });
     return () => unsub();
   }, []);
 
-  // SAVE SETTINGS
   useEffect(() => {
     localStorage.setItem("vislumbre_google_key", apiKey);
   }, [apiKey]);
@@ -1199,7 +969,6 @@ export default function App() {
     localStorage.removeItem("vislumbre_user");
     setCurrentUser(null);
   };
-
   const getNovoHistorico = (pedido, desc) => [
     {
       user: currentUser?.nome || "Sistema",
@@ -1255,7 +1024,7 @@ export default function App() {
   const moverPara = async (id, novoStatus) => {
     const pedido = pedidos.find((p) => p.id === id);
     if (novoStatus === "producao" && !pedido.roteiro)
-      return alert("Roteiro obrigatório antes de aprovar!");
+      return alert("Roteiro obrigatório!");
     const now = Date.now();
     const d = new Date().toLocaleString();
     let updates = {
@@ -1265,7 +1034,6 @@ export default function App() {
         `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`
       ),
     };
-
     if (novoStatus === "producao") {
       updates.tsProducao = now;
       updates.dataProducao = d;
@@ -1323,6 +1091,14 @@ export default function App() {
     moverPara(p.id, "finalizados");
   };
 
+  const reativarLead = (e, p) => {
+    e.stopPropagation();
+    const phone = p.telefone.replace(/\D/g, "");
+    const text = encodeURIComponent("Olá! Podemos retomar seu projeto?");
+    const url = `https://web.whatsapp.com/send?phone=55${phone}&text=${text}`;
+    window.open(url, "_blank");
+  };
+
   const gerarRoteiroIA = async (p) => {
     if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
     setLoadingIA(true);
@@ -1377,7 +1153,6 @@ export default function App() {
 
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
-  // ROTEAMENTO DE ABAS
   if (aba === "admin_team")
     return <AdminTeamPanel voltar={() => setAba("leads")} />;
   if (aba === "admin_services")
@@ -1462,11 +1237,11 @@ export default function App() {
                 paddingBottom: "4px",
               }}
             >
-              <span style={{ fontWeight: "bold", color: "#2c3e50" }}>
+              <span style={{ fontWeight: "bold", color: "#1e293b" }}>
                 {h.user}
               </span>{" "}
-              <span style={{ color: "#7f8c8d" }}> - {h.data}</span>
-              <div style={{ color: "#34495e", marginTop: "2px" }}>{h.desc}</div>
+              <span style={{ color: "#64748b" }}> - {h.data}</span>
+              <div style={{ color: "#334155", marginTop: "2px" }}>{h.desc}</div>
             </div>
           ))}
       </div>
@@ -1485,27 +1260,32 @@ export default function App() {
     >
       <header
         style={{
-          padding: "15px",
-          background: "#2c3e50",
+          padding: "15px 25px",
+          background: "#1e293b",
           color: "white",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
         }}
       >
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <h2 style={{ margin: 0 }}>Vislumbre ☁️</h2>
+        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
+            ☁️ Vislumbre
+          </h2>
           <span
             style={{
-              fontSize: "12px",
-              background: "#f1c40f",
-              color: "black",
-              padding: "2px 8px",
-              borderRadius: "10px",
-              fontWeight: "bold",
+              fontSize: "11px",
+              background: "#3b82f6",
+              color: "white",
+              padding: "4px 10px",
+              borderRadius: "20px",
+              fontWeight: "600",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
             }}
           >
-            {currentUser.nome} ({currentUser.role === "admin" ? "Admin" : "Op"})
+            {currentUser.nome}
           </span>
 
           {currentUser.role === "admin" && (
@@ -1516,37 +1296,44 @@ export default function App() {
                   setShowConfig(!showConfig);
                 }}
                 style={{
-                  background: "none",
+                  background: "rgba(255,255,255,0.1)",
                   border: "none",
                   cursor: "pointer",
-                  fontSize: "22px",
-                  marginLeft: "15px",
+                  fontSize: "16px",
+                  marginLeft: "10px",
+                  padding: "8px",
+                  borderRadius: "8px",
+                  transition: "0.2s",
                 }}
               >
-                ⚙️
+                ⚙️ Ajustes
               </button>
               {showConfig && (
                 <div
                   style={{
                     position: "absolute",
-                    top: "35px",
+                    top: "45px",
                     left: "0",
                     background: "white",
                     color: "#333",
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.2)",
-                    borderRadius: "6px",
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                    borderRadius: "10px",
                     overflow: "hidden",
                     zIndex: 100,
-                    width: "160px",
+                    width: "200px",
+                    border: "1px solid #e2e8f0",
                   }}
                 >
                   <div
                     onClick={() => setAba("admin_team")}
                     style={{
-                      padding: "10px",
+                      padding: "12px 15px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid #f1f5f9",
                       fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     👥 Equipe
@@ -1554,10 +1341,13 @@ export default function App() {
                   <div
                     onClick={() => setAba("admin_services")}
                     style={{
-                      padding: "10px",
+                      padding: "12px 15px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid #f1f5f9",
                       fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     🛠️ Serviços
@@ -1565,10 +1355,13 @@ export default function App() {
                   <div
                     onClick={() => setAba("stats")}
                     style={{
-                      padding: "10px",
+                      padding: "12px 15px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid #f1f5f9",
                       fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     📊 Estatísticas
@@ -1576,12 +1369,15 @@ export default function App() {
                   <div
                     onClick={() => setAba("admin_general")}
                     style={{
-                      padding: "10px",
+                      padding: "12px 15px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #eee",
+                      borderBottom: "1px solid #f1f5f9",
                       fontSize: "14px",
-                      fontWeight: "bold",
-                      color: "#2980b9",
+                      fontWeight: "600",
+                      color: "#3b82f6",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     ⚙️ Definições Gerais
@@ -1589,11 +1385,12 @@ export default function App() {
                   <div
                     onClick={handleResetSystem}
                     style={{
-                      padding: "10px",
+                      padding: "12px 15px",
                       cursor: "pointer",
-                      color: "red",
-                      fontSize: "12px",
-                      background: "#fff5f5",
+                      color: "#ef4444",
+                      fontSize: "13px",
+                      background: "#fef2f2",
+                      fontWeight: "600",
                     }}
                   >
                     🗑️ Resetar Tudo
@@ -1606,13 +1403,15 @@ export default function App() {
             <button
               onClick={() => setAba("stats")}
               style={{
-                background: "#8e44ad",
+                background: "#8b5cf6",
                 border: "none",
                 color: "white",
                 cursor: "pointer",
                 marginLeft: "10px",
-                borderRadius: "4px",
-                padding: "5px 10px",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "13px",
+                fontWeight: "600",
               }}
             >
               📊 Stats
@@ -1632,13 +1431,15 @@ export default function App() {
                 setIdSelecionado(null);
               }}
               style={{
-                background: aba === m.id ? "#f1c40f" : "#34495e",
-                color: aba === m.id ? "#000" : "#bdc3c7",
+                background: aba === m.id ? "#fbbf24" : "rgba(255,255,255,0.1)",
+                color: aba === m.id ? "#1e293b" : "#94a3b8",
                 border: "none",
-                padding: "8px 15px",
-                borderRadius: "4px",
+                padding: "8px 16px",
+                borderRadius: "6px",
                 cursor: "pointer",
-                fontWeight: "bold",
+                fontWeight: "600",
+                fontSize: "13px",
+                transition: "0.2s",
               }}
             >
               {m.l}
@@ -1647,11 +1448,14 @@ export default function App() {
           <button
             onClick={handleLogout}
             style={{
-              background: "#e74c3c",
+              background: "#ef4444",
               border: "none",
               color: "white",
-              borderRadius: "4px",
+              borderRadius: "6px",
               cursor: "pointer",
+              padding: "8px 16px",
+              fontWeight: "600",
+              fontSize: "13px",
             }}
           >
             Sair
@@ -1668,7 +1472,7 @@ export default function App() {
           novoTel={novoTel}
           setNovoTel={setNovoTel}
           adicionarLead={adicionarLead}
-          reativarLead={() => {}}
+          reativarLead={reativarLead}
           termoBusca={termoBusca}
           setTermoBusca={setTermoBusca}
           filtroDataInicio={filtroDataInicio}
@@ -1677,20 +1481,29 @@ export default function App() {
           setFiltroDataFim={setFiltroDataFim}
           horasReativacao={horasReativacao}
         />
-        <div style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
+        <div
+          style={{
+            flex: 1,
+            padding: "20px",
+            overflowY: "auto",
+            background: "#f8fafc",
+          }}
+        >
           {pedidoAtivo ? (
-            <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+            <div style={{ maxWidth: "900px", margin: "0 auto" }}>
               <div style={{ marginBottom: "20px", textAlign: "right" }}>
                 <span
                   style={{
-                    background: "#2c3e50",
-                    color: "white",
-                    padding: "5px 10px",
-                    borderRadius: "15px",
+                    background: "#cbd5e1",
+                    color: "#334155",
+                    padding: "6px 12px",
+                    borderRadius: "20px",
                     fontSize: "12px",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
                   }}
                 >
-                  {mapearStatus(pedidoAtivo.status).toUpperCase()}
+                  {mapearStatus(pedidoAtivo.status)}
                 </span>
               </div>
               <Details
@@ -1708,42 +1521,102 @@ export default function App() {
                 <div
                   style={{
                     marginTop: "30px",
-                    padding: "15px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    background: "#fdfdfd",
+                    padding: "20px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    background: "white",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
                   }}
                 >
-                  <h3 style={{ margin: "0 0 15px 0", color: "#2c3e50" }}>
-                    ⏱️ Performance
+                  <h3
+                    style={{
+                      margin: "0 0 15px 0",
+                      color: "#1e293b",
+                      fontSize: "16px",
+                    }}
+                  >
+                    ⏱️ Performance deste Pedido
                   </h3>
-                  <div style={{ marginBottom: "10px", fontSize: "14px" }}>
-                    ⬇️{" "}
-                    <strong>
-                      {getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO")}
-                    </strong>{" "}
-                    - Negociação:{" "}
-                    <span style={{ color: "#e67e22" }}>
-                      {" "}
-                      {calcularDuracao(
-                        pedidoAtivo.tsEntrada,
-                        pedidoAtivo.tsProducao
-                      )}{" "}
-                    </span>
-                  </div>
-                  <div style={{ marginBottom: "10px", fontSize: "14px" }}>
-                    ⬇️{" "}
-                    <strong>
-                      {getResponsavel(pedidoAtivo.historicoAcoes, "FINALIZADO")}
-                    </strong>{" "}
-                    - Produção:{" "}
-                    <span style={{ color: "#8e44ad" }}>
-                      {" "}
-                      {calcularDuracao(
-                        pedidoAtivo.tsProducao,
-                        pedidoAtivo.tsSaida
-                      )}{" "}
-                    </span>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "20px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "15px",
+                        background: "#fff7ed",
+                        borderRadius: "8px",
+                        border: "1px solid #ffedd5",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#9a3412",
+                          fontWeight: "bold",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Fase de Negociação
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          color: "#c2410c",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {calcularDuracao(
+                          pedidoAtivo.tsEntrada,
+                          pedidoAtivo.tsProducao
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#9a3412" }}>
+                        Resp:{" "}
+                        {getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO")}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        padding: "15px",
+                        background: "#f5f3ff",
+                        borderRadius: "8px",
+                        border: "1px solid #ede9fe",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#5b21b6",
+                          fontWeight: "bold",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Fase de Produção
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          color: "#6d28d9",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {calcularDuracao(
+                          pedidoAtivo.tsProducao,
+                          pedidoAtivo.tsSaida
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#5b21b6" }}>
+                        Resp:{" "}
+                        {getResponsavel(
+                          pedidoAtivo.historicoAcoes,
+                          "FINALIZADO"
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1751,9 +1624,17 @@ export default function App() {
             </div>
           ) : (
             <div
-              style={{ textAlign: "center", color: "#ccc", marginTop: "50px" }}
+              style={{
+                textAlign: "center",
+                color: "#94a3b8",
+                marginTop: "100px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
             >
-              Selecione um pedido
+              <div style={{ fontSize: "40px", marginBottom: "10px" }}>👈</div>
+              Selecione um pedido ao lado para começar
             </div>
           )}
         </div>
