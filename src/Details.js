@@ -1,9 +1,197 @@
 import React, { useRef } from "react";
-import { updateDoc, doc } from "firebase/firestore";
-import { db } from "./firebase";
 import { maskCurrency } from "./utils";
 
-// Recebendo loadingDelivery
+// Componente auxiliar para áreas de upload (Drag & Drop + Lista)
+const FileArea = ({
+  titulo,
+  arquivos,
+  onUpload,
+  onDelete,
+  accept,
+  isLeads,
+  emptyMsg,
+  btnText,
+}) => {
+  const inputRef = useRef(null);
+
+  // Converte arquivo único (legado) ou array em lista segura
+  const lista = Array.isArray(arquivos) ? arquivos : arquivos ? [arquivos] : [];
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      onUpload(e.dataTransfer.files);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: "25px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "10px",
+        }}
+      >
+        <label className="input-label" style={{ margin: 0 }}>
+          {titulo}
+        </label>
+
+        {/* Botão de inserir (visível apenas em leads para segurança ou para todos?)
+                    O usuário pediu: "inserido por arrasto ou inserção pelos arquivos"
+                    E: "diversos arquivos podem ser incluidos"
+                    Regra 1 anterior dizia: "apenas primeira etapa".
+                    Vou manter a inserção APENAS NO LEADS conforme Regra 1, 
+                    mas a exclusão para todos conforme o novo pedido.
+                */}
+        {isLeads && (
+          <button
+            onClick={() => inputRef.current.click()}
+            style={{
+              background: "#eff6ff",
+              color: "#3b82f6",
+              border: "1px solid #bfdbfe",
+              padding: "4px 10px",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "11px",
+              fontWeight: "600",
+            }}
+          >
+            {btnText || "+ Anexar"}
+          </button>
+        )}
+        <input
+          type="file"
+          ref={inputRef}
+          multiple // Permite vários
+          style={{ display: "none" }}
+          onChange={(e) => onUpload(e.target.files)}
+          accept={accept}
+        />
+      </div>
+
+      {/* Área de Drag & Drop */}
+      <div
+        onDragOver={(e) => isLeads && e.preventDefault()}
+        onDrop={(e) => isLeads && handleDrop(e)}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          border: isLeads ? "2px dashed #e2e8f0" : "1px solid #e2e8f0",
+          padding: "10px",
+          borderRadius: "8px",
+          background: isLeads ? "#f8fafc" : "#fff",
+          minHeight: "60px",
+        }}
+      >
+        {lista.map((url, i) => (
+          <div
+            key={i}
+            style={{
+              background: "white",
+              padding: "10px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                overflow: "hidden",
+              }}
+            >
+              <span style={{ fontSize: "14px" }}>📎</span>
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#334155",
+                  textDecoration: "none",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "200px",
+                }}
+              >
+                Arquivo {i + 1}
+              </a>
+            </div>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              {/* Player simples se for áudio */}
+              {(url.includes(".mp3") ||
+                url.includes(".wav") ||
+                url.includes(".m4a")) && (
+                <audio
+                  controls
+                  src={url}
+                  style={{ height: "25px", maxWidth: "150px" }}
+                />
+              )}
+
+              <a
+                href={url}
+                download
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#3b82f6",
+                  textDecoration: "none",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                }}
+              >
+                ⬇
+              </a>
+
+              {/* BOTÃO DE EXCLUIR: Disponível para TODOS (conforme pedido) */}
+              <span
+                onClick={() => onDelete(url)}
+                style={{
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                  marginLeft: "5px",
+                }}
+                title="Excluir arquivo"
+              >
+                ×
+              </span>
+            </div>
+          </div>
+        ))}
+
+        {lista.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: "12px",
+              padding: "10px",
+            }}
+          >
+            {isLeads
+              ? emptyMsg || "Arraste arquivos aqui..."
+              : "Nenhum arquivo."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function Details({
   ativo,
   atualizarPedido,
@@ -12,28 +200,11 @@ export default function Details({
   gerarRoteiroIA,
   loadingIA,
   loadingDelivery,
-  handleAudioUpload,
-  handleDrop,
+  handleUpload,
+  handleDeleteFile,
   servicos,
 }) {
-  const fileInputRef = useRef(null);
-
   const isLeads = ativo.status === "leads";
-
-  const deletarAudio = async (urlParaRemover) => {
-    if (!isLeads) return alert("Exclusão permitida apenas na etapa de Leads.");
-    if (window.confirm("Excluir este áudio?")) {
-      const novaLista = ativo.audios.filter((url) => url !== urlParaRemover);
-      await updateDoc(doc(db, "pedidos", ativo.id), { audios: novaLista });
-    }
-  };
-
-  const removerComprovante = async () => {
-    if (!isLeads) return alert("Exclusão permitida apenas na etapa de Leads.");
-    if (window.confirm("Remover comprovante?")) {
-      await updateDoc(doc(db, "pedidos", ativo.id), { comprovanteUrl: null });
-    }
-  };
 
   return (
     <div
@@ -100,127 +271,40 @@ export default function Details({
         }}
       />
 
-      {/* VALOR E COMPROVANTE */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "20px",
-          marginBottom: "20px",
-        }}
-      >
-        <div>
-          <label className="input-label">💰 Valor (Apenas Leads)</label>
-          <input
-            className="modern-input"
-            value={ativo.valorRaw || ""}
-            onChange={(e) =>
-              atualizarPedido(
-                ativo.id,
-                "valorRaw",
-                maskCurrency(e.target.value)
-              )
-            }
-            placeholder="R$ 0,00"
-            disabled={!isLeads}
-            style={{
-              background: isLeads ? "white" : "#f1f5f9",
-              cursor: isLeads ? "text" : "not-allowed",
-            }}
-          />
-        </div>
-
-        <div>
-          <label className="input-label">Comprovante (PDF/Img)</label>
-          <div
-            onDragOver={(e) => isLeads && e.preventDefault()}
-            onDrop={(e) => isLeads && handleDrop(e, ativo.id)}
-            onClick={() =>
-              isLeads && document.getElementById("proof-upload").click()
-            }
-            style={{
-              border: isLeads ? "2px dashed #cbd5e1" : "1px solid #e2e8f0",
-              borderRadius: "8px",
-              height: "45px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: isLeads ? "pointer" : "default",
-              background: ativo.comprovanteUrl
-                ? "#f0fdf4"
-                : isLeads
-                ? "white"
-                : "#f8fafc",
-              fontSize: "13px",
-              color: "#64748b",
-              position: "relative",
-            }}
-          >
-            <input
-              type="file"
-              id="proof-upload"
-              style={{ display: "none" }}
-              accept="image/*,.pdf"
-              onChange={(e) => {
-                const dt = new DataTransfer();
-                dt.items.add(e.target.files[0]);
-                handleDrop(
-                  {
-                    preventDefault: () => {},
-                    stopPropagation: () => {},
-                    dataTransfer: dt,
-                  },
-                  ativo.id
-                );
-              }}
-              disabled={!isLeads}
-            />
-
-            {ativo.comprovanteUrl ? (
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
-              >
-                <a
-                  href={ativo.comprovanteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    color: "#166534",
-                    fontWeight: "600",
-                    textDecoration: "none",
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  ✅ Ver Arquivo
-                </a>
-                {isLeads && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removerComprovante();
-                    }}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      color: "#ef4444",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ) : (
-              <span>
-                {isLeads ? "📄 Arraste PDF ou Imagem" : "🚫 Nenhum comprovante"}
-              </span>
-            )}
-          </div>
-        </div>
+      {/* VALOR */}
+      <div style={{ marginBottom: "20px" }}>
+        <label className="input-label">💰 Valor (Apenas Leads)</label>
+        <input
+          className="modern-input"
+          value={ativo.valorRaw || ""}
+          onChange={(e) =>
+            atualizarPedido(ativo.id, "valorRaw", maskCurrency(e.target.value))
+          }
+          placeholder="R$ 0,00"
+          disabled={!isLeads}
+          style={{
+            background: isLeads ? "white" : "#f1f5f9",
+            cursor: isLeads ? "text" : "not-allowed",
+            maxWidth: "200px",
+          }}
+        />
       </div>
 
-      {/* ROTEIRO (MUDANÇA DE NOME) */}
+      {/* COMPROVANTES (Múltiplos) */}
+      <FileArea
+        titulo="📄 Comprovantes / Documentos"
+        arquivos={
+          ativo.comprovantes || ativo.comprovanteUrl /* Fallback legado */
+        }
+        onUpload={(files) => handleUpload(files, "comprovantes", ativo.id)}
+        onDelete={(url) => handleDeleteFile(url, "comprovantes", ativo.id)}
+        accept="image/*,.pdf"
+        isLeads={isLeads}
+        btnText="+ Add Comprovante"
+        emptyMsg="Arraste comprovantes ou documentos..."
+      />
+
+      {/* ROTEIRO */}
       <div style={{ marginBottom: "20px" }}>
         <div
           style={{
@@ -230,7 +314,6 @@ export default function Details({
             marginBottom: "8px",
           }}
         >
-          {/* Alterado conforme pedido */}
           <label className="input-label" style={{ margin: 0 }}>
             🎵 Roteiro / Letra
           </label>
@@ -274,129 +357,17 @@ export default function Details({
         />
       </div>
 
-      {/* ÁUDIOS */}
-      <div style={{ marginBottom: "25px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "10px",
-          }}
-        >
-          <label className="input-label" style={{ margin: 0 }}>
-            🎙️ Arquivos do Projeto
-          </label>
-
-          {isLeads && (
-            <button
-              onClick={() => fileInputRef.current.click()}
-              style={{
-                background: "#eff6ff",
-                color: "#3b82f6",
-                border: "1px solid #bfdbfe",
-                padding: "4px 10px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "11px",
-                fontWeight: "600",
-              }}
-            >
-              + Anexar Áudio
-            </button>
-          )}
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            onChange={(e) => handleAudioUpload(e, ativo.id)}
-            accept="audio/*,video/*"
-          />
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {ativo.audios &&
-            ativo.audios.map((url, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "#f8fafc",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "5px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      color: "#334155",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Arquivo {i + 1}
-                  </span>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <a
-                      href={url}
-                      download
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        color: "#3b82f6",
-                        textDecoration: "none",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                      }}
-                    >
-                      ⬇ Baixar
-                    </a>
-                    {isLeads && (
-                      <span
-                        onClick={() => deletarAudio(url)}
-                        style={{
-                          color: "#ef4444",
-                          cursor: "pointer",
-                          fontSize: "11px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Excluir
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <audio
-                  controls
-                  src={url}
-                  style={{ width: "100%", height: "30px" }}
-                />
-              </div>
-            ))}
-          {(!ativo.audios || ativo.audios.length === 0) && (
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#cbd5e1",
-                fontStyle: "italic",
-                padding: "10px",
-                textAlign: "center",
-                border: "1px dashed #e2e8f0",
-                borderRadius: "6px",
-              }}
-            >
-              Nenhum áudio disponível.
-            </div>
-          )}
-        </div>
-      </div>
+      {/* ÁUDIOS / PROJETOS (Múltiplos) */}
+      <FileArea
+        titulo="🎙️ Arquivos do Projeto (Áudio/Vídeo)"
+        arquivos={ativo.audios}
+        onUpload={(files) => handleUpload(files, "audios", ativo.id)}
+        onDelete={(url) => handleDeleteFile(url, "audios", ativo.id)}
+        accept="audio/*,video/*"
+        isLeads={isLeads}
+        btnText="+ Add Áudio"
+        emptyMsg="Arraste arquivos de produção aqui..."
+      />
 
       {/* BOTÕES DE AÇÃO */}
       <div
@@ -436,7 +407,7 @@ export default function Details({
             </button>
             <button
               onClick={() => finalizarComWhats(ativo)}
-              disabled={loadingDelivery} // Desabilita se estiver gerando texto
+              disabled={loadingDelivery}
               className="btn-primary"
               style={{
                 background: "#22c55e",

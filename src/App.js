@@ -54,7 +54,6 @@ export default function App() {
       localStorage.getItem("vislumbre_prompt_ia") ||
       "Crie um roteiro criativo para um serviço de {servico}. O nome do cliente é {cliente}. Detalhes importantes: {obs}."
   );
-
   const [promptDelivery, setPromptDelivery] = useState(
     () =>
       localStorage.getItem("vislumbre_prompt_delivery") ||
@@ -196,7 +195,7 @@ export default function App() {
         obs: "",
         servico: servicos.length > 0 ? servicos[0].nome : "Outros",
         valorRaw: "",
-        comprovanteUrl: null,
+        comprovantes: [],
         audios: [],
         roteiro: "",
         tsEntrada: Date.now(),
@@ -250,52 +249,73 @@ export default function App() {
     setIdSelecionado(null);
   };
 
-  const handleProofDrop = async (e, id) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      try {
-        const storageRef = ref(
-          storage,
-          `comprovantes/${Date.now()}_${file.name}`
-        );
+  // --- FUNÇÃO DE UPLOAD GENÉRICA (Múltiplos Arquivos) ---
+  const handleUpload = async (fileList, campo, pedidoId) => {
+    if (!fileList || fileList.length === 0) return;
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    if (!pedido) return;
+
+    try {
+      const novosLinks = [];
+      // Loop para enviar todos os arquivos
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const pasta = campo === "audios" ? "audios" : "comprovantes";
+        const storageRef = ref(storage, `${pasta}/${Date.now()}_${file.name}`);
+
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
-        const pedido = pedidos.find((p) => p.id === id);
-        await updateDoc(doc(db, "pedidos", id), {
-          comprovanteUrl: url,
-          historicoAcoes: getNovoHistorico(pedido, "Enviou Comprovante"),
-        });
-      } catch (err) {
-        alert("Erro: " + err.message);
+        novosLinks.push(url);
       }
+
+      // Atualiza o banco (mescla com os existentes)
+      const listaAtual = pedido[campo] || [];
+      // Se for comprovante antigo (string), converte pra array
+      const listaSegura = Array.isArray(listaAtual)
+        ? listaAtual
+        : pedido.comprovanteUrl
+        ? [pedido.comprovanteUrl]
+        : [];
+
+      await updateDoc(doc(db, "pedidos", pedidoId), {
+        [campo]: [...listaSegura, ...novosLinks],
+        historicoAcoes: getNovoHistorico(
+          pedido,
+          `Adicionou arquivos em ${campo}`
+        ),
+      });
+    } catch (err) {
+      alert("Erro no upload: " + err.message);
     }
-  };
-  const handleAudioUpload = async (e, id) => {
-    const file = e.target.files[0];
-    if (file) {
-      const btn = e.target.nextSibling;
-      if (btn) btn.innerText = "⏳ Enviando...";
-      try {
-        const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        const pedido = pedidos.find((p) => p.id === id);
-        await updateDoc(doc(db, "pedidos", id), {
-          audios: [...(pedido.audios || []), url],
-          historicoAcoes: getNovoHistorico(pedido, "Anexou Áudio (Nuvem)"),
-        });
-      } catch (err) {
-        alert("Erro no upload: " + err.message);
-      } finally {
-        if (btn) btn.innerText = "← Adicionar áudio";
-      }
-    }
-    e.target.value = null;
   };
 
-  // FINALIZAR COM WHATS (IA + CONTEXTO)
+  // --- FUNÇÃO DE DELETAR ARQUIVO (Genérica) ---
+  const handleDeleteFile = async (urlParaRemover, campo, pedidoId) => {
+    if (window.confirm("Tem certeza que deseja excluir este arquivo?")) {
+      try {
+        // Tenta deletar do Storage (pode falhar se já não existir, mas seguimos)
+        try {
+          const fileRef = ref(storage, urlParaRemover);
+          await deleteObject(fileRef);
+        } catch (e) {
+          console.log("Arquivo já não existia no storage");
+        }
+
+        const pedido = pedidos.find((p) => p.id === pedidoId);
+        const listaAtual = pedido[campo] || [];
+        // Filtra removendo o item clicado
+        const novaLista = listaAtual.filter((u) => u !== urlParaRemover);
+
+        await updateDoc(doc(db, "pedidos", pedidoId), {
+          [campo]: novaLista,
+        });
+      } catch (e) {
+        alert("Erro ao excluir: " + e.message);
+      }
+    }
+  };
+
+  // WHATSAPP COM IA
   const finalizarComWhats = async (p) => {
     const phone = p.telefone.replace(/\D/g, "");
     let mensagem = "Seu projeto está pronto.";
@@ -306,7 +326,6 @@ export default function App() {
         const promptFinal = `${promptDelivery
           .replace(/{cliente}/g, p.cliente || "Cliente")
           .replace(/{servico}/g, p.servico || "projeto")}
-                  
                   --- CONTEXTO DO PROJETO (ROTEIRO/LETRA) ---
                   ${p.roteiro || "Sem roteiro definido."}`;
 
@@ -325,12 +344,11 @@ export default function App() {
         const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
         if (txt) mensagem = txt;
       } catch (e) {
-        console.error("Erro IA Delivery:", e);
+        console.error("Erro IA:", e);
       } finally {
         setLoadingDelivery(false);
       }
     }
-
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(
         mensagem
@@ -774,10 +792,9 @@ export default function App() {
                 gerarRoteiroIA={gerarRoteiroIA}
                 loadingIA={loadingIA}
                 loadingDelivery={loadingDelivery}
-                handleAudioUpload={handleAudioUpload}
-                // --- CORREÇÃO AQUI ---
-                handleDrop={handleProofDrop} // Antes estava "handleDrop={handleDrop}" que era o erro
-                // ---------------------
+                // Funções Genéricas
+                handleUpload={handleUpload}
+                handleDeleteFile={handleDeleteFile}
                 servicos={servicos}
                 currentUser={currentUser}
               />

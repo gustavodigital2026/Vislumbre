@@ -12,20 +12,18 @@ const LoginScreen = ({ onLogin }) => {
     setLoading(true);
     setError("");
 
-    // --- REMOVIDO O ADMIN PROVISÓRIO (admin/1234) ---
-    // Agora o acesso é exclusivo pelo banco de dados.
-
     try {
-      // Busca no Firebase
+      // 1. Busca o usuário no banco de dados pelo LOGIN
       const q = query(collection(db, "usuarios"), where("login", "==", user));
       const qs = await getDocs(q);
 
       if (!qs.empty) {
         const userData = qs.docs[0].data();
 
-        // Verifica a senha (Simples comparação direta)
+        // 2. Verifica se a senha bate
         if (userData.senha === pass) {
           const u = { ...userData, id: qs.docs[0].id };
+          // Salva no navegador para não deslogar ao atualizar (opcional)
           localStorage.setItem("vislumbre_user", JSON.stringify(u));
           onLogin(u);
         } else {
@@ -54,6 +52,7 @@ const LoginScreen = ({ onLogin }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        fontFamily: "Segoe UI, sans-serif",
       }}
     >
       <div
@@ -66,28 +65,25 @@ const LoginScreen = ({ onLogin }) => {
           boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
         }}
       >
+        {/* Logo */}
         <div
           style={{
             background: "white",
-            padding: "15px",
+            padding: "10px",
             borderRadius: "16px",
             border: "1px solid #e2e8f0",
             boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)",
             display: "inline-block",
-            marginBottom: "15px",
+            marginBottom: "20px",
           }}
         >
           <img
             src="/logo.jpeg"
-            alt="Vislumbre Logo"
-            style={{
-              maxWidth: "210px",
-              maxHeight: "210px",
-              borderRadius: "8px",
-              display: "block",
-            }}
+            alt="Vislumbre"
+            style={{ maxWidth: "120px", borderRadius: "8px", display: "block" }}
           />
         </div>
+
         <h2
           style={{
             color: "#1e293b",
@@ -99,48 +95,97 @@ const LoginScreen = ({ onLogin }) => {
           Vislumbre CRM
         </h2>
 
-        <div className="input-group">
+        <div style={{ marginBottom: "15px", textAlign: "left" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "12px",
+              color: "#64748b",
+              marginBottom: "5px",
+              fontWeight: "600",
+            }}
+          >
+            USUÁRIO
+          </label>
           <input
             className="modern-input"
-            placeholder="Usuário"
+            placeholder="Digite seu login..."
             value={user}
             onKeyDown={handleKeyDown}
             onChange={(e) => setUser(e.target.value)}
-            style={{ padding: "14px" }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              outline: "none",
+            }}
           />
         </div>
-        <div className="input-group" style={{ marginBottom: "25px" }}>
+
+        <div style={{ marginBottom: "25px", textAlign: "left" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "12px",
+              color: "#64748b",
+              marginBottom: "5px",
+              fontWeight: "600",
+            }}
+          >
+            SENHA
+          </label>
           <input
             className="modern-input"
             type="password"
-            placeholder="Senha"
+            placeholder="••••••"
             value={pass}
             onKeyDown={handleKeyDown}
             onChange={(e) => setPass(e.target.value)}
-            style={{ padding: "14px" }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              outline: "none",
+            }}
           />
         </div>
 
         {error && (
-          <p
+          <div
             style={{
-              color: "#ef4444",
+              color: "#b91c1c",
               fontSize: "13px",
-              marginBottom: "15px",
+              marginBottom: "20px",
               background: "#fef2f2",
-              padding: "8px",
-              borderRadius: "6px",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1px solid #fecaca",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
             }}
           >
-            {error}
-          </p>
+            <span>⚠️</span> {error}
+          </div>
         )}
 
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="btn-primary"
-          style={{ padding: "14px", fontSize: "16px" }}
+          style={{
+            width: "100%",
+            padding: "14px",
+            fontSize: "16px",
+            background: "#0f172a",
+            color: "white",
+            border: "none",
+            borderRadius: "10px",
+            cursor: loading ? "wait" : "pointer",
+            fontWeight: "600",
+            opacity: loading ? 0.7 : 1,
+          }}
         >
           {loading ? "Verificando..." : "Entrar no Sistema"}
         </button>
