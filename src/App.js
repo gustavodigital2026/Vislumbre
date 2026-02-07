@@ -25,7 +25,7 @@ import {
   AdminTeamPanel,
   AdminServicesPanel,
   AdminGeneralPanel,
-} from "./components/AdminPanels"; // Importando o novo painel
+} from "./components/AdminPanels";
 import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
 
@@ -194,8 +194,6 @@ export default function App() {
   const [horasReativacao, setHorasReativacao] = useState(
     () => Number(localStorage.getItem("vislumbre_reactivation_hours")) || 24
   );
-
-  // NOVO ESTADO: PROMPT DA IA
   const [promptIA, setPromptIA] = useState(
     () =>
       localStorage.getItem("vislumbre_prompt_ia") ||
@@ -235,12 +233,11 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // SALVAR CONFIGS
   useEffect(() => {
     localStorage.setItem("vislumbre_google_key", apiKey);
     localStorage.setItem("vislumbre_model", modeloIA);
     localStorage.setItem("vislumbre_reactivation_hours", horasReativacao);
-    localStorage.setItem("vislumbre_prompt_ia", promptIA); // Salva o prompt
+    localStorage.setItem("vislumbre_prompt_ia", promptIA);
   }, [apiKey, modeloIA, horasReativacao, promptIA]);
 
   const handleLogout = () => {
@@ -302,38 +299,36 @@ export default function App() {
 
   const moverPara = async (id, novoStatus) => {
     const pedido = pedidos.find((p) => p.id === id);
-    if (novoStatus === "producao" && !pedido.roteiro)
+    if (
+      novoStatus === "producao" &&
+      pedido.status === "leads" &&
+      !pedido.roteiro
+    )
       return alert("Roteiro obrigatório!");
+
     const now = Date.now();
+
+    const acaoDesc =
+      (pedido.status === "finalizados" && novoStatus === "producao") ||
+      (pedido.status === "producao" && novoStatus === "leads")
+        ? `Retornou para ${mapearStatus(novoStatus).toUpperCase()}`
+        : `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`;
+
     let updates = {
       status: novoStatus,
       tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
       tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
-      historicoAcoes: getNovoHistorico(
-        pedido,
-        `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`
-      ),
+      historicoAcoes: getNovoHistorico(pedido, acaoDesc),
     };
+
     if (novoStatus === "producao") {
       updates.dataProducao = new Date().toLocaleString();
       updates.tsVenda = now;
     }
     if (novoStatus === "finalizados") {
       updates.dataSaida = new Date().toLocaleString();
-      if (pedido.audios && pedido.audios.length > 0) {
-        await Promise.all(
-          pedido.audios.map(async (url) => {
-            try {
-              const fileRef = ref(storage, url);
-              await deleteObject(fileRef);
-            } catch (e) {
-              console.error("Erro deletar:", e);
-            }
-          })
-        );
-        updates.audios = [];
-      }
     }
+
     await updateDoc(doc(db, "pedidos", id), updates);
     setIdSelecionado(null);
   };
@@ -382,34 +377,35 @@ export default function App() {
     }
     e.target.value = null;
   };
+
+  // --- AQUI ESTÁ O TRUQUE DA ABA ---
   const finalizarComWhats = (p) => {
     const phone = p.telefone.replace(/\D/g, "");
+    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
-      "_blank"
+      "janela_crm_whatsapp"
     );
     moverPara(p.id, "finalizados");
   };
+
   const reativarLead = (e, p) => {
     e.stopPropagation();
     const phone = p.telefone.replace(/\D/g, "");
+    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
-      "_blank"
+      "janela_crm_whatsapp"
     );
   };
 
-  // --- FUNÇÃO IA ATUALIZADA (LÊ O PROMPT) ---
   const gerarRoteiroIA = async (p) => {
     if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
     setLoadingIA(true);
-
-    // SUBSTITUIÇÃO DE VARIÁVEIS
     const promptFinal = promptIA
       .replace(/{cliente}/g, p.cliente || "Cliente")
       .replace(/{servico}/g, p.servico || "Serviço")
       .replace(/{obs}/g, p.obs || "Sem observações");
-
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
@@ -452,15 +448,12 @@ export default function App() {
   };
 
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
-
   if (aba === "admin_team")
     return <AdminTeamPanel voltar={() => setAba("leads")} />;
   if (aba === "admin_services")
     return (
       <AdminServicesPanel servicos={servicos} voltar={() => setAba("leads")} />
     );
-
-  // PASSANDO O PROMPT PRO PAINEL
   if (aba === "admin_general")
     return (
       <AdminGeneralPanel
@@ -469,11 +462,10 @@ export default function App() {
         horas={horasReativacao}
         setHoras={setHorasReativacao}
         promptIA={promptIA}
-        setPromptIA={setPromptIA} // <--- NOVO
+        setPromptIA={setPromptIA}
         voltar={() => setAba("leads")}
       />
     );
-
   if (aba === "stats")
     return (
       <StatsPanel
