@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase"; // Note o "../" para voltar uma pasta
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../firebase"; // Importante: volta uma pasta (../)
 
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
@@ -11,7 +11,8 @@ const LoginScreen = ({ onLogin }) => {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
-    // Admin de emergência (opcional, pode remover se já criou no banco)
+
+    // Admin de emergência
     if (user === "admin" && pass === "1234") {
       const u = {
         nome: "Admin Provisorio",
@@ -23,6 +24,7 @@ const LoginScreen = ({ onLogin }) => {
       onLogin(u);
       return;
     }
+
     try {
       const q = query(
         collection(db, "usuarios"),
@@ -30,6 +32,7 @@ const LoginScreen = ({ onLogin }) => {
         where("senha", "==", pass)
       );
       const qs = await getDocs(q);
+
       if (!qs.empty) {
         const u = { ...qs.docs[0].data(), id: qs.docs[0].id };
         localStorage.setItem("vislumbre_user", JSON.stringify(u));
@@ -43,6 +46,7 @@ const LoginScreen = ({ onLogin }) => {
       setLoading(false);
     }
   };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleLogin();
   };
@@ -99,6 +103,7 @@ const LoginScreen = ({ onLogin }) => {
         >
           Vislumbre CRM
         </h2>
+
         <div className="input-group">
           <input
             className="modern-input"
@@ -120,6 +125,7 @@ const LoginScreen = ({ onLogin }) => {
             style={{ padding: "14px" }}
           />
         </div>
+
         {error && (
           <p
             style={{
@@ -134,6 +140,7 @@ const LoginScreen = ({ onLogin }) => {
             {error}
           </p>
         )}
+
         <button
           onClick={handleLogin}
           disabled={loading}
