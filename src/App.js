@@ -30,7 +30,6 @@ import {
 import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
 
-// --- APP PRINCIPAL ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("vislumbre_user");
@@ -39,6 +38,9 @@ export default function App() {
   const [aba, setAba] = useState("leads");
   const [pedidos, setPedidos] = useState([]);
   const [servicos, setServicos] = useState([]);
+
+  // --- NOVO: Estado para saber onde os outros usuários estão ---
+  const [usuariosOnline, setUsuariosOnline] = useState([]);
 
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("vislumbre_google_key") || ""
@@ -68,6 +70,28 @@ export default function App() {
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
+
+  // --- 1. MONITORAMENTO DE PRESENÇA (Ouvir os outros) ---
+  useEffect(() => {
+    // Escuta mudanças na tabela de usuários para ver o campo "focandoEm"
+    const unsub = onSnapshot(collection(db, "usuarios"), (snap) => {
+      const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setUsuariosOnline(users);
+    });
+    return () => unsub();
+  }, []);
+
+  // --- 2. TRANSMISSÃO DE PRESENÇA (Avisar onde eu estou) ---
+  useEffect(() => {
+    if (currentUser && currentUser.id) {
+      // Atualiza no banco qual pedido eu estou olhando agora
+      // Se idSelecionado for null, avisa que não estou olhando nada
+      updateDoc(doc(db, "usuarios", currentUser.id), {
+        focandoEm: idSelecionado || null,
+        ultimoAcesso: Date.now(),
+      }).catch((err) => console.error("Erro ao atualizar presença", err));
+    }
+  }, [idSelecionado, currentUser]);
 
   // FAXINA 7 DIAS
   useEffect(() => {
@@ -162,6 +186,9 @@ export default function App() {
   }, [apiKey, modeloIA, horasReativacao, promptIA, promptDelivery]);
 
   const handleLogout = () => {
+    // Limpa presença ao sair
+    if (currentUser?.id)
+      updateDoc(doc(db, "usuarios", currentUser.id), { focandoEm: null });
     localStorage.removeItem("vislumbre_user");
     setCurrentUser(null);
   };
@@ -249,34 +276,26 @@ export default function App() {
     setIdSelecionado(null);
   };
 
-  // --- FUNÇÃO DE UPLOAD GENÉRICA (Múltiplos Arquivos) ---
   const handleUpload = async (fileList, campo, pedidoId) => {
     if (!fileList || fileList.length === 0) return;
     const pedido = pedidos.find((p) => p.id === pedidoId);
     if (!pedido) return;
-
     try {
       const novosLinks = [];
-      // Loop para enviar todos os arquivos
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const pasta = campo === "audios" ? "audios" : "comprovantes";
         const storageRef = ref(storage, `${pasta}/${Date.now()}_${file.name}`);
-
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
         novosLinks.push(url);
       }
-
-      // Atualiza o banco (mescla com os existentes)
       const listaAtual = pedido[campo] || [];
-      // Se for comprovante antigo (string), converte pra array
       const listaSegura = Array.isArray(listaAtual)
         ? listaAtual
         : pedido.comprovanteUrl
         ? [pedido.comprovanteUrl]
         : [];
-
       await updateDoc(doc(db, "pedidos", pedidoId), {
         [campo]: [...listaSegura, ...novosLinks],
         historicoAcoes: getNovoHistorico(
@@ -289,46 +308,35 @@ export default function App() {
     }
   };
 
-  // --- FUNÇÃO DE DELETAR ARQUIVO (Genérica) ---
   const handleDeleteFile = async (urlParaRemover, campo, pedidoId) => {
     if (window.confirm("Tem certeza que deseja excluir este arquivo?")) {
       try {
-        // Tenta deletar do Storage (pode falhar se já não existir, mas seguimos)
         try {
           const fileRef = ref(storage, urlParaRemover);
           await deleteObject(fileRef);
-        } catch (e) {
-          console.log("Arquivo já não existia no storage");
-        }
-
+        } catch (e) {}
         const pedido = pedidos.find((p) => p.id === pedidoId);
         const listaAtual = pedido[campo] || [];
-        // Filtra removendo o item clicado
         const novaLista = listaAtual.filter((u) => u !== urlParaRemover);
-
-        await updateDoc(doc(db, "pedidos", pedidoId), {
-          [campo]: novaLista,
-        });
+        await updateDoc(doc(db, "pedidos", pedidoId), { [campo]: novaLista });
       } catch (e) {
         alert("Erro ao excluir: " + e.message);
       }
     }
   };
 
-  // WHATSAPP COM IA
   const finalizarComWhats = async (p) => {
     const phone = p.telefone.replace(/\D/g, "");
     let mensagem = "Seu projeto está pronto.";
-
     if (apiKey) {
       setLoadingDelivery(true);
       try {
         const promptFinal = `${promptDelivery
           .replace(/{cliente}/g, p.cliente || "Cliente")
-          .replace(/{servico}/g, p.servico || "projeto")}
-                  --- CONTEXTO DO PROJETO (ROTEIRO/LETRA) ---
-                  ${p.roteiro || "Sem roteiro definido."}`;
-
+          .replace(
+            /{servico}/g,
+            p.servico || "projeto"
+          )} --- CONTEXTO (ROTEIRO): ${p.roteiro || "Sem roteiro."}`;
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
           {
@@ -339,7 +347,6 @@ export default function App() {
             }),
           }
         );
-
         const d = await res.json();
         const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
         if (txt) mensagem = txt;
@@ -741,6 +748,7 @@ export default function App() {
       </header>
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        {/* Passando os usuariosOnline para o Sidebar */}
         <Sidebar
           aba={aba}
           lista={listaFiltrada}
@@ -757,6 +765,8 @@ export default function App() {
           filtroDataFim={filtroDataFim}
           setFiltroDataFim={setFiltroDataFim}
           horasReativacao={horasReativacao}
+          usuariosOnline={usuariosOnline} // <--- NOVO
+          currentUser={currentUser} // <--- NOVO
         />
         <div
           style={{
@@ -792,7 +802,6 @@ export default function App() {
                 gerarRoteiroIA={gerarRoteiroIA}
                 loadingIA={loadingIA}
                 loadingDelivery={loadingDelivery}
-                // Funções Genéricas
                 handleUpload={handleUpload}
                 handleDeleteFile={handleDeleteFile}
                 servicos={servicos}

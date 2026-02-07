@@ -1,15 +1,5 @@
 import React from "react";
-import "./styles.css";
-
-const formatarDataLista = (dataString) => {
-  if (!dataString) return "";
-  try {
-    const partes = dataString.split(" ");
-    return `${partes[0].substring(0, 5)} ${partes[1].substring(0, 5)}`;
-  } catch (e) {
-    return dataString;
-  }
-};
+import { formatarDuracaoHoras, normalizar } from "./utils";
 
 export default function Sidebar({
   aba,
@@ -26,129 +16,85 @@ export default function Sidebar({
   setFiltroDataInicio,
   filtroDataFim,
   setFiltroDataFim,
-  horasReativacao = 24,
+  horasReativacao,
+  usuariosOnline,
+  currentUser,
 }) {
-  const verificarAtraso = (ts) => {
-    if (!ts) return false;
-    const horasSeguras = Number(horasReativacao) || 24;
-    const limiteMs = horasSeguras * 60 * 60 * 1000;
-    return Date.now() - ts > limiteMs;
+  // Função para checar quem está vendo o card
+  const getVisualizadores = (itemId) => {
+    if (!usuariosOnline) return [];
+    return usuariosOnline.filter(
+      (u) => u.focandoEm === itemId && u.login !== currentUser?.login
+    );
   };
 
   return (
-    <div className="sidebar-container">
-      <div className="sidebar-header">
-        <div className="input-group" style={{ marginBottom: "10px" }}>
+    <div
+      style={{
+        width: "350px",
+        background: "white",
+        borderRight: "1px solid #e2e8f0",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      }}
+    >
+      {/* HEADER DA BUSCA */}
+      <div style={{ padding: "15px", borderBottom: "1px solid #f1f5f9" }}>
+        <input
+          className="modern-input"
+          placeholder="🔍 Buscar cliente ou telefone..."
+          value={termoBusca}
+          onChange={(e) => setTermoBusca(e.target.value)}
+          style={{ marginBottom: "10px" }}
+        />
+
+        {/* Filtro de Datas */}
+        <div style={{ display: "flex", gap: "5px", marginBottom: "10px" }}>
           <input
-            type="text"
-            placeholder="🔍 Buscar cliente..."
-            value={termoBusca}
-            onChange={(e) => setTermoBusca(e.target.value)}
+            type="date"
             className="modern-input"
-            style={{ padding: "8px" }}
+            style={{ padding: "5px", fontSize: "11px" }}
+            value={filtroDataInicio}
+            onChange={(e) => setFiltroDataInicio(e.target.value)}
+          />
+          <input
+            type="date"
+            className="modern-input"
+            style={{ padding: "5px", fontSize: "11px" }}
+            value={filtroDataFim}
+            onChange={(e) => setFiltroDataFim(e.target.value)}
           />
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "5px",
-            alignItems: "center",
-            fontSize: "11px",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "2px",
-                color: "#64748b",
-              }}
-            >
-              De:
-            </label>
-            <input
-              type="date"
-              value={filtroDataInicio}
-              onChange={(e) => setFiltroDataInicio(e.target.value)}
-              className="modern-input"
-              style={{ padding: "5px" }}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "2px",
-                color: "#64748b",
-              }}
-            >
-              Até:
-            </label>
-            <input
-              type="date"
-              value={filtroDataFim}
-              onChange={(e) => setFiltroDataFim(e.target.value)}
-              className="modern-input"
-              style={{ padding: "5px" }}
-            />
-          </div>
-        </div>
-      </div>
 
-      {aba === "leads" && !termoBusca && (
-        <div
-          style={{
-            padding: "15px",
-            background: "#fff",
-            borderBottom: "1px solid #e2e8f0",
-          }}
-        >
-          <label
-            style={{
-              fontSize: "11px",
-              color: "#64748b",
-              fontWeight: "bold",
-              textTransform: "uppercase",
-            }}
-          >
-            Novo WhatsApp:
-          </label>
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+        {/* Botão de Novo Lead */}
+        {aba === "leads" && (
+          <div style={{ display: "flex", gap: "10px" }}>
             <input
-              placeholder="Telefone (Opcional)"
-              type="tel"
+              className="modern-input"
+              placeholder="Novo Telefone (Whatsapp)"
               value={novoTel}
               onChange={(e) => setNovoTel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") adicionarLead();
-              }}
-              className="modern-input"
-              style={{ flex: 1 }}
             />
             <button
               onClick={adicionarLead}
               className="btn-primary"
-              style={{
-                width: "auto",
-                padding: "0 15px",
-                fontSize: "20px",
-                display: "flex",
-                alignItems: "center",
-              }}
+              style={{ padding: "0 15px", fontSize: "20px" }}
             >
               +
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="sidebar-list-area">
-        {(!lista || lista.length === 0) && (
+      {/* LISTA DE CARDS */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+        {lista.length === 0 && (
           <div
             style={{
-              padding: "30px",
               textAlign: "center",
               color: "#94a3b8",
+              marginTop: "20px",
               fontSize: "13px",
             }}
           >
@@ -156,82 +102,93 @@ export default function Sidebar({
           </div>
         )}
 
-        {lista &&
-          lista.map((p) => {
-            const dataMostrada =
-              aba === "finalizados" && p.dataSaida
-                ? p.dataSaida
-                : p.dataEntrada;
-            const isLate = verificarAtraso(p.tsEntrada);
+        {lista.map((item) => {
+          // Verifica reativação
+          const tempoParado = Date.now() - (item.tsEntrada || 0);
+          const precisaReativar =
+            aba === "leads" && tempoParado > horasReativacao * 60 * 60 * 1000;
 
-            // LÓGICA DO TÍTULO "FANTASMA"
-            const titulo = p.cliente
-              ? p.cliente
-              : p.telefone
-              ? p.telefone
-              : "Novo Lead (Sem dados)";
+          // Verifica visualizadores (PRESENÇA)
+          const viewers = getVisualizadores(item.id);
+          const isBeingViewed = viewers.length > 0;
 
-            return (
-              <div
-                key={p.id}
-                onClick={() => setIdSelecionado(p.id)}
-                className={`sidebar-card ${
-                  idSelecionado === p.id ? "active" : ""
-                }`}
-              >
-                <div className="sidebar-card-title">{titulo}</div>
-                {p.cliente && (
+          return (
+            <div
+              key={item.id}
+              onClick={() => setIdSelecionado(item.id)}
+              className="item-card"
+              style={{
+                borderLeft: `4px solid ${
+                  idSelecionado === item.id ? "#3b82f6" : "transparent"
+                }`,
+                background: idSelecionado === item.id ? "#eff6ff" : "white",
+                position: "relative", // Necessário para a bolinha
+              }}
+            >
+              {/* BOLINHA DE PRESENÇA */}
+              {isBeingViewed && (
+                <>
                   <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#64748b",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    {p.telefone}
+                    className="user-presence-dot"
+                    title={`Sendo visto por: ${viewers
+                      .map((v) => v.nome)
+                      .join(", ")}`}
+                  ></div>
+                  <div className="presence-tooltip">
+                    👁️ {viewers[0].nome}{" "}
+                    {viewers.length > 1 ? `+${viewers.length - 1}` : ""}
                   </div>
-                )}
+                </>
+              )}
 
-                <div className="sidebar-card-subtitle">
-                  {aba !== "leads" ? (
-                    <span className="status-badge">{p.servico}</span>
-                  ) : isLate ? (
-                    <button
-                      onClick={(e) => reativarLead(e, p)}
-                      style={{
-                        background: "#fee2e2",
-                        color: "#ef4444",
-                        border: "none",
-                        borderRadius: "20px",
-                        padding: "4px 10px",
-                        fontSize: "10px",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                      }}
-                    >
-                      📢 Reativar
-                    </button>
-                  ) : (
-                    <span
-                      style={{
-                        color: "#22c55e",
-                        fontWeight: "bold",
-                        fontSize: "11px",
-                      }}
-                    >
-                      ✨ Novo
-                    </span>
-                  )}
-                  <span style={{ fontSize: "11px" }}>
-                    {formatarDataLista(dataMostrada)}
-                  </span>
-                </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "5px",
+                }}
+              >
+                <strong style={{ color: "#1e293b", fontSize: "14px" }}>
+                  {item.cliente || "Sem Nome"}
+                </strong>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>
+                  {item.dataEntrada?.split(" ")[0]}
+                </span>
               </div>
-            );
-          })}
+
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginBottom: "5px",
+                }}
+              >
+                {item.servico} - {item.telefone}
+              </div>
+
+              {/* Botão de Reativar (Só leads antigos) */}
+              {precisaReativar && (
+                <div
+                  onClick={(e) => reativarLead(e, item)}
+                  style={{
+                    marginTop: "8px",
+                    background: "#fee2e2",
+                    color: "#ef4444",
+                    fontSize: "11px",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    display: "inline-block",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    border: "1px solid #fecaca",
+                  }}
+                >
+                  ⏰ Reativar Contato
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
