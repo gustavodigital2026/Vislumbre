@@ -29,6 +29,9 @@ import {
 import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
 
+// --- VARIÁVEL GLOBAL PARA CONTROLAR A JANELA DO WHATSAPP ---
+let whatsappWindow = null;
+
 // --- LOGIN ---
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
@@ -265,12 +268,13 @@ export default function App() {
     return formatarDuracaoHoras(fim - inicio);
   };
 
+  // --- ADICIONAR LEAD (ATUALIZADO PARA ABRIR DIRETO) ---
   const adicionarLead = async () => {
-    if (!novoTel) return;
+    // Removemos a trava "if (!novoTel) return;" para permitir criar vazio
     try {
-      await addDoc(collection(db, "pedidos"), {
+      const docRef = await addDoc(collection(db, "pedidos"), {
         cliente: "",
-        telefone: novoTel,
+        telefone: novoTel || "", // Se tiver numero usa, senao vazio
         status: "leads",
         obs: "",
         servico: servicos[0]?.nome || "Outros",
@@ -289,11 +293,14 @@ export default function App() {
           },
         ],
       });
+
       setNovoTel("");
+      setIdSelecionado(docRef.id); // <--- ABRE O PAINEL DIREITO IMEDIATAMENTE
     } catch (e) {
       alert("Erro: " + e.message);
     }
   };
+
   const atualizarPedido = async (id, campo, valor) =>
     await updateDoc(doc(db, "pedidos", id), { [campo]: valor });
 
@@ -307,7 +314,6 @@ export default function App() {
       return alert("Roteiro obrigatório!");
 
     const now = Date.now();
-
     const acaoDesc =
       (pedido.status === "finalizados" && novoStatus === "producao") ||
       (pedido.status === "producao" && novoStatus === "leads")
@@ -378,25 +384,27 @@ export default function App() {
     e.target.value = null;
   };
 
-  // --- AQUI ESTÁ O TRUQUE DA ABA ---
-  const finalizarComWhats = (p) => {
-    const phone = p.telefone.replace(/\D/g, "");
-    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
-      "janela_crm_whatsapp"
-    );
-    moverPara(p.id, "finalizados");
+  const abrirWhatsApp = (telefone, texto) => {
+    const url = `https://web.whatsapp.com/send?phone=55${telefone}&text=${encodeURIComponent(
+      texto
+    )}`;
+    if (whatsappWindow && !whatsappWindow.closed) {
+      whatsappWindow.location.href = url;
+      whatsappWindow.focus();
+    } else {
+      whatsappWindow = window.open(url, "janela_vislumbre_zap");
+    }
   };
 
+  const finalizarComWhats = (p) => {
+    const phone = p.telefone.replace(/\D/g, "");
+    abrirWhatsApp(phone, "Seu projeto está pronto.");
+    moverPara(p.id, "finalizados");
+  };
   const reativarLead = (e, p) => {
     e.stopPropagation();
     const phone = p.telefone.replace(/\D/g, "");
-    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
-      "janela_crm_whatsapp"
-    );
+    abrirWhatsApp(phone, "Olá! Podemos retomar?");
   };
 
   const gerarRoteiroIA = async (p) => {
