@@ -20,7 +20,12 @@ import {
 import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
-import StatsPanel from "./components/StatsPanel"; // <--- IMPORTADO
+import StatsPanel from "./components/StatsPanel";
+import {
+  AdminTeamPanel,
+  AdminServicesPanel,
+  AdminGeneralPanel,
+} from "./components/AdminPanels"; // Importando o novo painel
 import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
 
@@ -170,293 +175,6 @@ const LoginScreen = ({ onLogin }) => {
   );
 };
 
-// --- GESTÃO DE EQUIPE ---
-const AdminTeamPanel = ({ voltar }) => {
-  const [usuarios, setUsuarios] = useState([]);
-  const [novoNome, setNovoNome] = useState("");
-  const [novoLogin, setNovoLogin] = useState("");
-  const [novaSenha, setNovaSenha] = useState("");
-  useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, "usuarios")), (snap) => {
-      setUsuarios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
-  }, []);
-  const adicionarUsuario = async () => {
-    if (!novoNome || !novoLogin || !novaSenha) return alert("Preencha tudo!");
-    await addDoc(collection(db, "usuarios"), {
-      nome: novoNome,
-      login: novoLogin,
-      senha: novaSenha,
-      role: "operador",
-      acessoStats: false,
-    });
-    setNovoNome("");
-    setNovoLogin("");
-    setNovaSenha("");
-  };
-  const removerUsuario = async (id) => {
-    if (window.confirm("Remover usuário?"))
-      await deleteDoc(doc(db, "usuarios", id));
-  };
-  const alterarSenha = async (u) => {
-    const nova = prompt(`Nova senha para ${u.nome}:`, u.senha);
-    if (nova && nova !== u.senha)
-      await updateDoc(doc(db, "usuarios", u.id), { senha: nova });
-  };
-  const toggleStats = async (id, statusAtual) => {
-    await updateDoc(doc(db, "usuarios", id), { acessoStats: !statusAtual });
-  };
-  return (
-    <div className="admin-container">
-      <div className="admin-wrapper">
-        <div className="admin-header">
-          <h2 className="admin-title">👥 Gestão de Equipe</h2>
-          <button onClick={voltar} className="btn-back">
-            Voltar
-          </button>
-        </div>
-        <div className="grid-cards">
-          {usuarios.map((u) => (
-            <div key={u.id} className="item-card">
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <div
-                  className="user-avatar"
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    background: "#3b82f6",
-                    color: "white",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: "bold",
-                    marginRight: "15px",
-                  }}
-                >
-                  {u.nome.charAt(0).toUpperCase()}
-                </div>
-                <div className="item-info">
-                  <h4 className="item-title">{u.nome}</h4>
-                  <p className="item-subtitle">Login: {u.login}</p>
-                  <p
-                    className="item-subtitle"
-                    style={{
-                      color: "#2563eb",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
-                    onClick={() => alterarSenha(u)}
-                  >
-                    🔑 {u.senha} ✎
-                  </p>
-                  <label
-                    style={{
-                      fontSize: "11px",
-                      marginTop: "5px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "5px",
-                      cursor: "pointer",
-                      color: u.acessoStats ? "#3b82f6" : "#94a3b8",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={u.acessoStats || false}
-                      onChange={() => toggleStats(u.id, u.acessoStats)}
-                    />{" "}
-                    Acesso a Stats
-                  </label>
-                </div>
-              </div>
-              <button
-                onClick={() => removerUsuario(u.id)}
-                className="btn-icon-delete"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-        <div
-          className="card-panel"
-          style={{ maxWidth: "500px", margin: "0 auto" }}
-        >
-          <div className="card-header">✨ Adicionar Novo Membro</div>
-          <div className="input-group">
-            <label className="input-label">Nome Completo</label>
-            <input
-              className="modern-input"
-              value={novoNome}
-              onChange={(e) => setNovoNome(e.target.value)}
-            />
-          </div>
-          <div className="input-group">
-            <label className="input-label">Login de Acesso</label>
-            <input
-              className="modern-input"
-              value={novoLogin}
-              onChange={(e) => setNovoLogin(e.target.value)}
-            />
-          </div>
-          <div className="input-group">
-            <label className="input-label">Senha</label>
-            <input
-              className="modern-input"
-              type="password"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
-            />
-          </div>
-          <button onClick={adicionarUsuario} className="btn-primary">
-            Cadastrar Usuário
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- GESTÃO DE SERVIÇOS ---
-const AdminServicesPanel = ({ servicos, voltar }) => {
-  const [nome, setNome] = useState("");
-  const [cor, setCor] = useState("#3b82f6");
-  const adicionar = async () => {
-    if (!nome) return alert("Digite o nome");
-    await addDoc(collection(db, "servicos"), { nome, cor });
-    setNome("");
-  };
-  const remover = async (id) => {
-    if (window.confirm("Remover serviço?"))
-      await deleteDoc(doc(db, "servicos", id));
-  };
-  return (
-    <div className="admin-container">
-      <div className="admin-wrapper">
-        <div className="admin-header">
-          <h2 className="admin-title">🛠️ Catálogo de Serviços</h2>
-          <button onClick={voltar} className="btn-back">
-            Voltar
-          </button>
-        </div>
-        <div className="grid-cards">
-          {servicos.map((s) => (
-            <div
-              key={s.id}
-              className="item-card"
-              style={{ borderLeft: `5px solid ${s.cor}` }}
-            >
-              <div className="item-info">
-                <h4 className="item-title">{s.nome}</h4>
-                <p
-                  className="item-subtitle"
-                  style={{ display: "flex", alignItems: "center", gap: "5px" }}
-                >
-                  <span
-                    style={{
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      background: s.cor,
-                    }}
-                  ></span>
-                  {s.cor}
-                </p>
-              </div>
-              <button onClick={() => remover(s.id)} className="btn-icon-delete">
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-        <div
-          className="card-panel"
-          style={{ maxWidth: "500px", margin: "0 auto" }}
-        >
-          <div className="card-header">➕ Novo Serviço</div>
-          <div className="input-group">
-            <label className="input-label">Nome do Serviço</label>
-            <input
-              className="modern-input"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-            />
-          </div>
-          <div className="input-group">
-            <label className="input-label">Cor de Identificação</label>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <input
-                type="color"
-                value={cor}
-                onChange={(e) => setCor(e.target.value)}
-                style={{
-                  height: "40px",
-                  width: "60px",
-                  border: "none",
-                  background: "none",
-                }}
-              />
-            </div>
-          </div>
-          <button onClick={adicionar} className="btn-primary">
-            Salvar Serviço
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- DEFINIÇÕES GERAIS ---
-const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
-  return (
-    <div className="admin-container">
-      <div className="admin-wrapper">
-        <div className="admin-header">
-          <h2 className="admin-title">⚙️ Definições do Sistema</h2>
-          <button onClick={voltar} className="btn-back">
-            Voltar
-          </button>
-        </div>
-        <div className="card-panel">
-          <div className="card-header">🤖 Inteligência Artificial (Gemini)</div>
-          <div className="input-group">
-            <label className="input-label">Google API Key</label>
-            <input
-              className="modern-input"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Cole sua chave (AIzaSy...)"
-            />
-            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
-              Necessário para gerar roteiros automáticos na tela de pedidos.
-            </p>
-          </div>
-        </div>
-        <div className="card-panel">
-          <div className="card-header">⏰ Automação de Leads</div>
-          <div className="input-group">
-            <label className="input-label">Tempo para Reativação (Horas)</label>
-            <input
-              className="modern-input"
-              type="number"
-              value={horas}
-              onChange={(e) => setHoras(e.target.value)}
-            />
-            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
-              Se um lead ficar parado por mais de <strong>{horas} horas</strong>
-              , o botão "Reativar" aparecerá.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // --- APP PRINCIPAL ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -475,6 +193,13 @@ export default function App() {
   );
   const [horasReativacao, setHorasReativacao] = useState(
     () => Number(localStorage.getItem("vislumbre_reactivation_hours")) || 24
+  );
+
+  // NOVO ESTADO: PROMPT DA IA
+  const [promptIA, setPromptIA] = useState(
+    () =>
+      localStorage.getItem("vislumbre_prompt_ia") ||
+      "Crie um roteiro criativo para um serviço de {servico}. O nome do cliente é {cliente}. Detalhes importantes: {obs}."
   );
 
   const [showConfig, setShowConfig] = useState(false);
@@ -510,22 +235,19 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // SALVAR CONFIGS
   useEffect(() => {
     localStorage.setItem("vislumbre_google_key", apiKey);
-  }, [apiKey]);
-  useEffect(() => {
     localStorage.setItem("vislumbre_model", modeloIA);
-  }, [modeloIA]);
-  useEffect(() => {
     localStorage.setItem("vislumbre_reactivation_hours", horasReativacao);
-  }, [horasReativacao]);
+    localStorage.setItem("vislumbre_prompt_ia", promptIA); // Salva o prompt
+  }, [apiKey, modeloIA, horasReativacao, promptIA]);
 
   const handleLogout = () => {
     localStorage.removeItem("vislumbre_user");
     setCurrentUser(null);
   };
 
-  // FUNÇÃO AUXILIAR DO HISTÓRICO
   const getNovoHistorico = (pedido, desc) => [
     {
       user: currentUser?.nome || "Sistema",
@@ -535,7 +257,6 @@ export default function App() {
     },
     ...(pedido.historicoAcoes || []),
   ];
-
   const getResponsavel = (historico, palavraChave) => {
     const acao = historico?.find((h) =>
       h.desc.toUpperCase().includes(palavraChave.toUpperCase())
@@ -584,7 +305,6 @@ export default function App() {
     if (novoStatus === "producao" && !pedido.roteiro)
       return alert("Roteiro obrigatório!");
     const now = Date.now();
-
     let updates = {
       status: novoStatus,
       tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
@@ -594,7 +314,6 @@ export default function App() {
         `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`
       ),
     };
-
     if (novoStatus === "producao") {
       updates.dataProducao = new Date().toLocaleString();
       updates.tsVenda = now;
@@ -679,9 +398,18 @@ export default function App() {
       "_blank"
     );
   };
+
+  // --- FUNÇÃO IA ATUALIZADA (LÊ O PROMPT) ---
   const gerarRoteiroIA = async (p) => {
     if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
     setLoadingIA(true);
+
+    // SUBSTITUIÇÃO DE VARIÁVEIS
+    const promptFinal = promptIA
+      .replace(/{cliente}/g, p.cliente || "Cliente")
+      .replace(/{servico}/g, p.servico || "Serviço")
+      .replace(/{obs}/g, p.obs || "Sem observações");
+
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
@@ -689,15 +417,7 @@ export default function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Crie um roteiro/letra para ${p.servico}. Cliente: ${p.cliente}. Obs: ${p.obs}`,
-                  },
-                ],
-              },
-            ],
+            contents: [{ parts: [{ text: promptFinal }] }],
           }),
         }
       );
@@ -714,6 +434,7 @@ export default function App() {
       setLoadingIA(false);
     }
   };
+
   const handleResetSystem = async () => {
     if (
       window.confirm(
@@ -738,6 +459,8 @@ export default function App() {
     return (
       <AdminServicesPanel servicos={servicos} voltar={() => setAba("leads")} />
     );
+
+  // PASSANDO O PROMPT PRO PAINEL
   if (aba === "admin_general")
     return (
       <AdminGeneralPanel
@@ -745,9 +468,12 @@ export default function App() {
         setApiKey={setApiKey}
         horas={horasReativacao}
         setHoras={setHorasReativacao}
+        promptIA={promptIA}
+        setPromptIA={setPromptIA} // <--- NOVO
         voltar={() => setAba("leads")}
       />
     );
+
   if (aba === "stats")
     return (
       <StatsPanel

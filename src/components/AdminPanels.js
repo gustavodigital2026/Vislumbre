@@ -16,16 +16,14 @@ export const AdminTeamPanel = ({ voltar }) => {
   const [novoNome, setNovoNome] = useState("");
   const [novoLogin, setNovoLogin] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
-
   useEffect(() => {
-    const u = onSnapshot(query(collection(db, "usuarios")), (s) =>
-      setUsuarios(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => u();
+    const unsub = onSnapshot(query(collection(db, "usuarios")), (snap) => {
+      setUsuarios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
   }, []);
-
-  const adicionar = async () => {
-    if (!novoNome || !novoLogin || !novaSenha) return alert("Preencha tudo");
+  const adicionarUsuario = async () => {
+    if (!novoNome || !novoLogin || !novaSenha) return alert("Preencha tudo!");
     await addDoc(collection(db, "usuarios"), {
       nome: novoNome,
       login: novoLogin,
@@ -37,23 +35,23 @@ export const AdminTeamPanel = ({ voltar }) => {
     setNovoLogin("");
     setNovaSenha("");
   };
-  const remover = async (id) => {
-    if (window.confirm("Remover?")) await deleteDoc(doc(db, "usuarios", id));
+  const removerUsuario = async (id) => {
+    if (window.confirm("Remover usuário?"))
+      await deleteDoc(doc(db, "usuarios", id));
   };
   const alterarSenha = async (u) => {
-    const n = prompt(`Nova senha para ${u.nome}:`, u.senha);
-    if (n && n !== u.senha)
-      await updateDoc(doc(db, "usuarios", u.id), { senha: n });
+    const nova = prompt(`Nova senha para ${u.nome}:`, u.senha);
+    if (nova && nova !== u.senha)
+      await updateDoc(doc(db, "usuarios", u.id), { senha: nova });
   };
-  const toggleStats = async (id, s) => {
-    await updateDoc(doc(db, "usuarios", id), { acessoStats: !s });
+  const toggleStats = async (id, statusAtual) => {
+    await updateDoc(doc(db, "usuarios", id), { acessoStats: !statusAtual });
   };
-
   return (
     <div className="admin-container">
       <div className="admin-wrapper">
         <div className="admin-header">
-          <h2 className="admin-title">👥 Equipe</h2>
+          <h2 className="admin-title">👥 Gestão de Equipe</h2>
           <button onClick={voltar} className="btn-back">
             Voltar
           </button>
@@ -62,7 +60,21 @@ export const AdminTeamPanel = ({ voltar }) => {
           {usuarios.map((u) => (
             <div key={u.id} className="item-card">
               <div style={{ display: "flex", alignItems: "center" }}>
-                <div className="user-avatar">
+                <div
+                  className="user-avatar"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    background: "#3b82f6",
+                    color: "white",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                    marginRight: "15px",
+                  }}
+                >
                   {u.nome.charAt(0).toUpperCase()}
                 </div>
                 <div className="item-info">
@@ -71,7 +83,7 @@ export const AdminTeamPanel = ({ voltar }) => {
                   <p
                     className="item-subtitle"
                     style={{
-                      color: "#3b82f6",
+                      color: "#2563eb",
                       cursor: "pointer",
                       fontWeight: "bold",
                     }}
@@ -95,11 +107,14 @@ export const AdminTeamPanel = ({ voltar }) => {
                       checked={u.acessoStats || false}
                       onChange={() => toggleStats(u.id, u.acessoStats)}
                     />{" "}
-                    Acesso Stats
+                    Acesso a Stats
                   </label>
                 </div>
               </div>
-              <button onClick={() => remover(u.id)} className="btn-icon-delete">
+              <button
+                onClick={() => removerUsuario(u.id)}
+                className="btn-icon-delete"
+              >
                 ×
               </button>
             </div>
@@ -107,11 +122,11 @@ export const AdminTeamPanel = ({ voltar }) => {
         </div>
         <div
           className="card-panel"
-          style={{ maxWidth: "500px", margin: "20px auto" }}
+          style={{ maxWidth: "500px", margin: "0 auto" }}
         >
-          <div className="card-header">Novo Membro</div>
+          <div className="card-header">✨ Adicionar Novo Membro</div>
           <div className="input-group">
-            <label className="input-label">Nome</label>
+            <label className="input-label">Nome Completo</label>
             <input
               className="modern-input"
               value={novoNome}
@@ -119,7 +134,7 @@ export const AdminTeamPanel = ({ voltar }) => {
             />
           </div>
           <div className="input-group">
-            <label className="input-label">Login</label>
+            <label className="input-label">Login de Acesso</label>
             <input
               className="modern-input"
               value={novoLogin}
@@ -135,8 +150,8 @@ export const AdminTeamPanel = ({ voltar }) => {
               onChange={(e) => setNovaSenha(e.target.value)}
             />
           </div>
-          <button onClick={adicionar} className="btn-primary">
-            Cadastrar
+          <button onClick={adicionarUsuario} className="btn-primary">
+            Cadastrar Usuário
           </button>
         </div>
       </div>
@@ -149,19 +164,19 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
   const [nome, setNome] = useState("");
   const [cor, setCor] = useState("#3b82f6");
   const adicionar = async () => {
-    if (!nome) return alert("Nome?");
+    if (!nome) return alert("Digite o nome");
     await addDoc(collection(db, "servicos"), { nome, cor });
     setNome("");
   };
   const remover = async (id) => {
-    if (window.confirm("Remover?")) await deleteDoc(doc(db, "servicos", id));
+    if (window.confirm("Remover serviço?"))
+      await deleteDoc(doc(db, "servicos", id));
   };
-
   return (
     <div className="admin-container">
       <div className="admin-wrapper">
         <div className="admin-header">
-          <h2 className="admin-title">🛠️ Serviços</h2>
+          <h2 className="admin-title">🛠️ Catálogo de Serviços</h2>
           <button onClick={voltar} className="btn-back">
             Voltar
           </button>
@@ -175,6 +190,20 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
             >
               <div className="item-info">
                 <h4 className="item-title">{s.nome}</h4>
+                <p
+                  className="item-subtitle"
+                  style={{ display: "flex", alignItems: "center", gap: "5px" }}
+                >
+                  <span
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      background: s.cor,
+                    }}
+                  ></span>
+                  {s.cor}
+                </p>
               </div>
               <button onClick={() => remover(s.id)} className="btn-icon-delete">
                 ×
@@ -184,11 +213,11 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
         </div>
         <div
           className="card-panel"
-          style={{ maxWidth: "500px", margin: "20px auto" }}
+          style={{ maxWidth: "500px", margin: "0 auto" }}
         >
-          <div className="card-header">Novo Serviço</div>
+          <div className="card-header">➕ Novo Serviço</div>
           <div className="input-group">
-            <label className="input-label">Nome</label>
+            <label className="input-label">Nome do Serviço</label>
             <input
               className="modern-input"
               value={nome}
@@ -196,21 +225,23 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
             />
           </div>
           <div className="input-group">
-            <label className="input-label">Cor</label>
-            <input
-              type="color"
-              value={cor}
-              onChange={(e) => setCor(e.target.value)}
-              style={{
-                height: "40px",
-                width: "60px",
-                border: "none",
-                background: "none",
-              }}
-            />
+            <label className="input-label">Cor de Identificação</label>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <input
+                type="color"
+                value={cor}
+                onChange={(e) => setCor(e.target.value)}
+                style={{
+                  height: "40px",
+                  width: "60px",
+                  border: "none",
+                  background: "none",
+                }}
+              />
+            </div>
           </div>
           <button onClick={adicionar} className="btn-primary">
-            Salvar
+            Salvar Serviço
           </button>
         </div>
       </div>
@@ -218,46 +249,88 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
   );
 };
 
-// --- PAINEL GERAL ---
+// --- PAINEL GERAL (MODIFICADO COM PROMPT) ---
 export const AdminGeneralPanel = ({
   apiKey,
   setApiKey,
   horas,
   setHoras,
+  promptIA,
+  setPromptIA,
   voltar,
-}) => (
-  <div className="admin-container">
-    <div className="admin-wrapper">
-      <div className="admin-header">
-        <h2 className="admin-title">⚙️ Definições</h2>
-        <button onClick={voltar} className="btn-back">
-          Voltar
-        </button>
-      </div>
-      <div className="card-panel">
-        <div className="card-header">🤖 IA (Gemini)</div>
-        <div className="input-group">
-          <label className="input-label">API Key</label>
-          <input
-            className="modern-input"
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
+}) => {
+  return (
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">⚙️ Definições do Sistema</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
         </div>
-      </div>
-      <div className="card-panel">
-        <div className="card-header">⏰ Automação</div>
-        <div className="input-group">
-          <label className="input-label">Horas Reativar</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={horas}
-            onChange={(e) => setHoras(e.target.value)}
-          />
+
+        <div className="card-panel">
+          <div className="card-header">🤖 Configuração da IA (Gemini)</div>
+
+          <div className="input-group">
+            <label className="input-label">Google API Key</label>
+            <input
+              className="modern-input"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Cole sua chave (AIzaSy...)"
+            />
+          </div>
+
+          <div className="input-group" style={{ marginTop: "20px" }}>
+            <label className="input-label">
+              Prompt Padrão (Instruções para a IA)
+            </label>
+            <textarea
+              className="modern-input"
+              rows={6}
+              value={promptIA}
+              onChange={(e) => setPromptIA(e.target.value)}
+              placeholder="Ex: Crie uma letra de música..."
+              style={{ fontFamily: "monospace", fontSize: "13px" }}
+            />
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                marginTop: "8px",
+                lineHeight: "1.5",
+              }}
+            >
+              Use estas variáveis no texto para o sistema preencher
+              automaticamente:
+              <br />
+              <strong style={{ color: "#3b82f6" }}>{`{cliente}`}</strong> = Nome
+              do Cliente
+              <br />
+              <strong style={{ color: "#3b82f6" }}>{`{servico}`}</strong> =
+              Serviço Selecionado
+              <br />
+              <strong style={{ color: "#3b82f6" }}>{`{obs}`}</strong> =
+              Observações do Pedido
+            </p>
+          </div>
+        </div>
+
+        <div className="card-panel">
+          <div className="card-header">⏰ Automação de Leads</div>
+          <div className="input-group">
+            <label className="input-label">Tempo para Reativação (Horas)</label>
+            <input
+              className="modern-input"
+              type="number"
+              value={horas}
+              onChange={(e) => setHoras(e.target.value)}
+            />
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 
 const formatarMoeda = (v) => {
   if (!v) return "";
@@ -53,6 +53,7 @@ const styles = {
     marginBottom: "20px",
     cursor: "pointer",
     background: "#f9f9f9",
+    transition: "background 0.2s",
   },
 };
 
@@ -68,6 +69,9 @@ export default function Details({
   servicos = [],
   currentUser,
 }) {
+  const fileInputRef = useRef(null); // Referência para o input invisível
+  const [editMode, setEditMode] = useState(false);
+
   if (!ativo) return null;
   const isAdmin = currentUser?.role === "admin";
 
@@ -75,14 +79,38 @@ export default function Details({
     const novoStatus = !ativo.devolvido;
     if (
       window.confirm(
-        novoStatus
-          ? "Marcar este pedido como DEVOLVIDO? O valor será descontado das estatísticas."
-          : "Restaurar este pedido (cancelar devolução)?"
+        novoStatus ? "Marcar como DEVOLVIDO?" : "Cancelar devolução?"
       )
     ) {
       atualizarPedido(ativo.id, "devolvido", novoStatus);
+      setEditMode(false);
     }
   };
+
+  // Função para lidar com o clique na área de drop
+  const handleAreaClick = () => {
+    fileInputRef.current.click();
+  };
+
+  // Função para lidar com a seleção de arquivo pelo clique
+  const onFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Simulamos um evento de drop para reaproveitar a função handleDrop do App.js
+      const fakeEvent = {
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        dataTransfer: { files: [file] },
+      };
+      handleDrop(fakeEvent, ativo.id);
+    }
+  };
+
+  // Verifica se o comprovante parece ser um PDF
+  const isPDF =
+    ativo.comprovanteUrl &&
+    (ativo.comprovanteUrl.toLowerCase().includes(".pdf") ||
+      ativo.comprovanteUrl.toLowerCase().includes("pdf?"));
 
   const ListaAudios = ({ audios }) =>
     audios && audios.length > 0 ? (
@@ -170,7 +198,6 @@ export default function Details({
                       {s.nome}
                     </option>
                   ))}
-                  {servicos.length === 0 && <option>Jingle</option>}
                 </select>
               </div>
               <div style={styles.grupoInput}>
@@ -252,9 +279,6 @@ export default function Details({
                 onChange={(e) => handleAudioUpload(e, ativo.id)}
                 style={{ fontSize: "12px" }}
               />
-              <span style={{ fontSize: "11px", color: "#95a5a6" }}>
-                ← Adicionar áudio
-              </span>
             </div>
           </div>
 
@@ -328,24 +352,85 @@ export default function Details({
             </span>
           </div>
 
+          {/* ÁREA DE DROP (ATUALIZADA: CLIQUE + PDF) */}
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleDrop(e, ativo.id)}
+            onClick={handleAreaClick} // CLIQUE HABILITADO
             style={styles.areaDrop}
+            title="Clique ou arraste o comprovante"
           >
+            {/* INPUT INVISÍVEL QUE ACEITA PDF E IMAGEM */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              accept="image/*,application/pdf" // ACEITA PDF
+              onChange={onFileSelect}
+            />
+
             {ativo.comprovanteUrl ? (
               <div>
-                <img
-                  src={ativo.comprovanteUrl}
-                  style={{ maxHeight: "150px" }}
-                  alt="ok"
-                />
-                <p style={{ color: "green", margin: 0 }}>Comprovante OK!</p>
+                {isPDF ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    <span style={{ fontSize: "40px" }}>📄</span>
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: "#3b82f6",
+                        fontWeight: "bold",
+                        textDecoration: "none",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Ver Documento PDF
+                    </a>
+                    <p style={{ color: "green", margin: 0, fontSize: "12px" }}>
+                      Comprovante Recebido!
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <img
+                      src={ativo.comprovanteUrl}
+                      style={{
+                        maxHeight: "150px",
+                        borderRadius: "4px",
+                        border: "1px solid #ddd",
+                      }}
+                      alt="ok"
+                    />
+                    <p style={{ color: "green", margin: 0 }}>Comprovante OK!</p>
+                  </div>
+                )}
               </div>
             ) : (
-              <p style={{ margin: 0, color: "#bdc3c7" }}>
-                📂 Arraste Comprovante de Pagamento
-              </p>
+              <div style={{ pointerEvents: "none" }}>
+                <span
+                  style={{
+                    fontSize: "24px",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  📂
+                </span>
+                <p style={{ margin: 0, color: "#bdc3c7", fontWeight: "bold" }}>
+                  Arraste ou Clique para anexar Comprovante
+                </p>
+                <p style={{ margin: 0, color: "#95a5a6", fontSize: "11px" }}>
+                  (Aceita Imagem ou PDF)
+                </p>
+              </div>
             )}
           </div>
 
@@ -373,7 +458,7 @@ export default function Details({
                 fontWeight: "bold",
               }}
             >
-              🚫 ESTE PEDIDO FOI DEVOLVIDO (Não conta no faturamento)
+              🚫 ESTE PEDIDO FOI DEVOLVIDO
             </div>
           )}
 
@@ -387,74 +472,99 @@ export default function Details({
             }}
           >
             {isAdmin ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "10px",
-                  marginBottom: "15px",
-                  borderBottom: "1px solid #c8e6c9",
-                  paddingBottom: "15px",
-                }}
-              >
-                <div>
-                  <label
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <button
+                    onClick={() => setEditMode(!editMode)}
                     style={{
-                      fontSize: "11px",
-                      fontWeight: "bold",
-                      color: "#2e7d32",
-                    }}
-                  >
-                    SERVIÇO (Admin):
-                  </label>
-                  <select
-                    value={ativo.servico}
-                    onChange={(e) =>
-                      atualizarPedido(ativo.id, "servico", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "5px",
+                      background: editMode ? "#ef4444" : "#f1f5f9",
+                      border: "1px solid #ccc",
+                      padding: "5px 10px",
                       borderRadius: "4px",
-                      border: "1px solid #a5d6a7",
-                    }}
-                  >
-                    {servicos.map((s) => (
-                      <option key={s.id} value={s.nome}>
-                        {s.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    style={{
+                      cursor: "pointer",
                       fontSize: "11px",
-                      fontWeight: "bold",
-                      color: "#2e7d32",
                     }}
                   >
-                    VALOR (Admin):
-                  </label>
-                  <input
-                    value={formatarMoeda(ativo.valorRaw)}
-                    onChange={(e) =>
-                      atualizarPedido(
-                        ativo.id,
-                        "valorRaw",
-                        e.target.value.replace(/\D/g, "")
-                      )
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "5px",
-                      borderRadius: "4px",
-                      border: "1px solid #a5d6a7",
-                      fontWeight: "bold",
-                    }}
-                  />
+                    {editMode ? "🔒 Bloquear" : "🔓 Editar"}
+                  </button>
                 </div>
-              </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px",
+                    marginBottom: "15px",
+                    borderBottom: "1px solid #c8e6c9",
+                    paddingBottom: "15px",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        color: "#2e7d32",
+                      }}
+                    >
+                      SERVIÇO:
+                    </label>
+                    <select
+                      disabled={!editMode}
+                      value={ativo.servico}
+                      onChange={(e) =>
+                        atualizarPedido(ativo.id, "servico", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "5px",
+                        borderRadius: "4px",
+                        border: "1px solid #a5d6a7",
+                      }}
+                    >
+                      {servicos.map((s) => (
+                        <option key={s.id} value={s.nome}>
+                          {s.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        color: "#2e7d32",
+                      }}
+                    >
+                      VALOR:
+                    </label>
+                    <input
+                      disabled={!editMode}
+                      value={formatarMoeda(ativo.valorRaw)}
+                      onChange={(e) =>
+                        atualizarPedido(
+                          ativo.id,
+                          "valorRaw",
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "5px",
+                        borderRadius: "4px",
+                        border: "1px solid #a5d6a7",
+                        fontWeight: "bold",
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
             ) : (
               <div
                 style={{
@@ -497,7 +607,7 @@ export default function Details({
                     marginBottom: "5px",
                   }}
                 >
-                  Áudios do Projeto (Somente Leitura):
+                  Áudios do Projeto:
                 </strong>
                 <ListaAudios audios={ativo.audios} />
               </div>
@@ -513,7 +623,7 @@ export default function Details({
             </button>
           )}
 
-          {isAdmin && (
+          {isAdmin && editMode && (
             <div
               style={{
                 marginTop: "30px",
