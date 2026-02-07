@@ -20,6 +20,9 @@ import {
 import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
+
+// --- IMPORTS ORGANIZADOS ---
+import LoginScreen from "./components/LoginScreen"; // <--- IMPORTANDO O ARQUIVO EXTERNO
 import StatsPanel from "./components/StatsPanel";
 import {
   AdminTeamPanel,
@@ -28,152 +31,6 @@ import {
 } from "./components/AdminPanels";
 import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
-
-// --- LOGIN ---
-const LoginScreen = ({ onLogin }) => {
-  const [user, setUser] = useState("");
-  const [pass, setPass] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const handleLogin = async () => {
-    setLoading(true);
-    setError("");
-    if (user === "admin" && pass === "1234") {
-      const u = {
-        nome: "Admin Provisorio",
-        login: "admin",
-        role: "admin",
-        acessoStats: true,
-      };
-      localStorage.setItem("vislumbre_user", JSON.stringify(u));
-      onLogin(u);
-      return;
-    }
-    try {
-      const q = query(
-        collection(db, "usuarios"),
-        where("login", "==", user),
-        where("senha", "==", pass)
-      );
-      const qs = await getDocs(q);
-      if (!qs.empty) {
-        const u = { ...qs.docs[0].data(), id: qs.docs[0].id };
-        localStorage.setItem("vislumbre_user", JSON.stringify(u));
-        onLogin(u);
-      } else {
-        setError("Dados incorretos.");
-      }
-    } catch (e) {
-      setError("Erro de conexão.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
-  return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#f1f5f9",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {" "}
-      <div
-        style={{
-          background: "white",
-          padding: "40px",
-          borderRadius: "24px",
-          width: "340px",
-          textAlign: "center",
-          boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
-        }}
-      >
-        {" "}
-        <div
-          style={{
-            background: "white",
-            padding: "15px",
-            borderRadius: "16px",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)",
-            display: "inline-block",
-            marginBottom: "15px",
-          }}
-        >
-          {" "}
-          <img
-            src="/logo.jpeg"
-            alt="Vislumbre Logo"
-            style={{
-              maxWidth: "210px",
-              maxHeight: "210px",
-              borderRadius: "8px",
-              display: "block",
-            }}
-          />{" "}
-        </div>{" "}
-        <h2
-          style={{
-            color: "#1e293b",
-            margin: "0 0 25px 0",
-            fontSize: "22px",
-            fontWeight: "700",
-          }}
-        >
-          Vislumbre CRM
-        </h2>{" "}
-        <div className="input-group">
-          <input
-            className="modern-input"
-            placeholder="Usuário"
-            value={user}
-            onKeyDown={handleKeyDown}
-            onChange={(e) => setUser(e.target.value)}
-            style={{ padding: "14px" }}
-          />
-        </div>{" "}
-        <div className="input-group" style={{ marginBottom: "25px" }}>
-          <input
-            className="modern-input"
-            type="password"
-            placeholder="Senha"
-            value={pass}
-            onKeyDown={handleKeyDown}
-            onChange={(e) => setPass(e.target.value)}
-            style={{ padding: "14px" }}
-          />
-        </div>{" "}
-        {error && (
-          <p
-            style={{
-              color: "#ef4444",
-              fontSize: "13px",
-              marginBottom: "15px",
-              background: "#fef2f2",
-              padding: "8px",
-              borderRadius: "6px",
-            }}
-          >
-            {error}
-          </p>
-        )}{" "}
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="btn-primary"
-          style={{ padding: "14px", fontSize: "16px" }}
-        >
-          {loading ? "Verificando..." : "Entrar no Sistema"}
-        </button>{" "}
-      </div>{" "}
-    </div>
-  );
-};
 
 // --- APP PRINCIPAL ---
 export default function App() {
@@ -266,11 +123,10 @@ export default function App() {
   };
 
   const adicionarLead = async () => {
-    if (!novoTel) return;
     try {
-      await addDoc(collection(db, "pedidos"), {
+      const docRef = await addDoc(collection(db, "pedidos"), {
         cliente: "",
-        telefone: novoTel,
+        telefone: novoTel || "",
         status: "leads",
         obs: "",
         servico: servicos[0]?.nome || "Outros",
@@ -290,10 +146,12 @@ export default function App() {
         ],
       });
       setNovoTel("");
+      setIdSelecionado(docRef.id);
     } catch (e) {
       alert("Erro: " + e.message);
     }
   };
+
   const atualizarPedido = async (id, campo, valor) =>
     await updateDoc(doc(db, "pedidos", id), { [campo]: valor });
 
@@ -305,22 +163,18 @@ export default function App() {
       !pedido.roteiro
     )
       return alert("Roteiro obrigatório!");
-
     const now = Date.now();
-
     const acaoDesc =
       (pedido.status === "finalizados" && novoStatus === "producao") ||
       (pedido.status === "producao" && novoStatus === "leads")
         ? `Retornou para ${mapearStatus(novoStatus).toUpperCase()}`
         : `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`;
-
     let updates = {
       status: novoStatus,
       tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
       tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
       historicoAcoes: getNovoHistorico(pedido, acaoDesc),
     };
-
     if (novoStatus === "producao") {
       updates.dataProducao = new Date().toLocaleString();
       updates.tsVenda = now;
@@ -328,7 +182,6 @@ export default function App() {
     if (novoStatus === "finalizados") {
       updates.dataSaida = new Date().toLocaleString();
     }
-
     await updateDoc(doc(db, "pedidos", id), updates);
     setIdSelecionado(null);
   };
@@ -377,25 +230,20 @@ export default function App() {
     }
     e.target.value = null;
   };
-
-  // --- AQUI ESTÁ O TRUQUE DA ABA ---
   const finalizarComWhats = (p) => {
     const phone = p.telefone.replace(/\D/g, "");
-    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
-      "janela_crm_whatsapp"
+      "_blank"
     );
     moverPara(p.id, "finalizados");
   };
-
   const reativarLead = (e, p) => {
     e.stopPropagation();
     const phone = p.telefone.replace(/\D/g, "");
-    // Abre sempre na mesma aba chamada "janela_crm_whatsapp"
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
-      "janela_crm_whatsapp"
+      "_blank"
     );
   };
 
@@ -813,7 +661,6 @@ export default function App() {
                   {mapearStatus(pedidoAtivo.status)}
                 </span>
               </div>
-
               <Details
                 ativo={pedidoAtivo}
                 atualizarPedido={atualizarPedido}
@@ -826,7 +673,6 @@ export default function App() {
                 servicos={servicos}
                 currentUser={currentUser}
               />
-
               {pedidoAtivo.status === "finalizados" && (
                 <div
                   style={{
@@ -930,7 +776,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-
               <HistoricoView historico={pedidoAtivo.historicoAcoes} />
             </div>
           ) : (

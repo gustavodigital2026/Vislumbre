@@ -37,7 +37,6 @@ export default function Sidebar({
 
   return (
     <div className="sidebar-container">
-      {/* CABEÇALHO COM FILTROS */}
       <div className="sidebar-header">
         <div className="input-group" style={{ marginBottom: "10px" }}>
           <input
@@ -96,7 +95,6 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* ÁREA DE NOVO LEAD */}
       {aba === "leads" && !termoBusca && (
         <div
           style={{
@@ -117,7 +115,7 @@ export default function Sidebar({
           </label>
           <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
             <input
-              placeholder="(11) 99999-9999"
+              placeholder="Telefone (Opcional)"
               type="tel"
               value={novoTel}
               onChange={(e) => setNovoTel(e.target.value)}
@@ -144,7 +142,6 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* LISTA DE PEDIDOS */}
       <div className="sidebar-list-area">
         {(!lista || lista.length === 0) && (
           <div
@@ -167,6 +164,13 @@ export default function Sidebar({
                 : p.dataEntrada;
             const isLate = verificarAtraso(p.tsEntrada);
 
+            // LÓGICA DO TÍTULO "FANTASMA"
+            const titulo = p.cliente
+              ? p.cliente
+              : p.telefone
+              ? p.telefone
+              : "Novo Lead (Sem dados)";
+
             return (
               <div
                 key={p.id}
@@ -175,9 +179,7 @@ export default function Sidebar({
                   idSelecionado === p.id ? "active" : ""
                 }`}
               >
-                <div className="sidebar-card-title">
-                  {p.cliente ? p.cliente : p.telefone}
-                </div>
+                <div className="sidebar-card-title">{titulo}</div>
                 {p.cliente && (
                   <div
                     style={{

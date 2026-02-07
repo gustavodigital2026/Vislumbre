@@ -8,7 +8,7 @@ import {
   onSnapshot,
   query,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../firebase"; // Atenção: "../firebase" volta uma pasta para achar o arquivo
 
 // --- PAINEL EQUIPE ---
 export const AdminTeamPanel = ({ voltar }) => {
@@ -249,7 +249,7 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
   );
 };
 
-// --- PAINEL GERAL (MODIFICADO COM PROMPT) ---
+// --- PAINEL GERAL ---
 export const AdminGeneralPanel = ({
   apiKey,
   setApiKey,
@@ -268,10 +268,8 @@ export const AdminGeneralPanel = ({
             Voltar
           </button>
         </div>
-
         <div className="card-panel">
           <div className="card-header">🤖 Configuração da IA (Gemini)</div>
-
           <div className="input-group">
             <label className="input-label">Google API Key</label>
             <input
@@ -282,7 +280,6 @@ export const AdminGeneralPanel = ({
               placeholder="Cole sua chave (AIzaSy...)"
             />
           </div>
-
           <div className="input-group" style={{ marginTop: "20px" }}>
             <label className="input-label">
               Prompt Padrão (Instruções para a IA)
@@ -303,21 +300,13 @@ export const AdminGeneralPanel = ({
                 lineHeight: "1.5",
               }}
             >
-              Use estas variáveis no texto para o sistema preencher
-              automaticamente:
-              <br />
-              <strong style={{ color: "#3b82f6" }}>{`{cliente}`}</strong> = Nome
-              do Cliente
-              <br />
-              <strong style={{ color: "#3b82f6" }}>{`{servico}`}</strong> =
-              Serviço Selecionado
-              <br />
-              <strong style={{ color: "#3b82f6" }}>{`{obs}`}</strong> =
-              Observações do Pedido
+              Variáveis:{" "}
+              <strong style={{ color: "#3b82f6" }}>{`{cliente}`}</strong>,{" "}
+              <strong style={{ color: "#3b82f6" }}>{`{servico}`}</strong>,{" "}
+              <strong style={{ color: "#3b82f6" }}>{`{obs}`}</strong>
             </p>
           </div>
         </div>
-
         <div className="card-panel">
           <div className="card-header">⏰ Automação de Leads</div>
           <div className="input-group">
