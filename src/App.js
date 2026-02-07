@@ -20,6 +20,8 @@ import {
 import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
+
+// --- IMPORTANTE: Verifique se estes caminhos estão certos! ---
 import StatsPanel from "./components/StatsPanel";
 import {
   AdminTeamPanel,
@@ -265,9 +267,7 @@ export default function App() {
     return formatarDuracaoHoras(fim - inicio);
   };
 
-  // --- CORREÇÃO AQUI: ADICIONAR E JÁ SELECIONAR ---
   const adicionarLead = async () => {
-    // Não tem validação if(!novoTel), então cria vazio
     try {
       const docRef = await addDoc(collection(db, "pedidos"), {
         cliente: "",
@@ -290,9 +290,8 @@ export default function App() {
           },
         ],
       });
-
       setNovoTel("");
-      setIdSelecionado(docRef.id); // <--- AQUI ESTAVA O PROBLEMA, AGORA ESTÁ CORRIGIDO
+      setIdSelecionado(docRef.id);
     } catch (e) {
       alert("Erro: " + e.message);
     }
@@ -309,22 +308,18 @@ export default function App() {
       !pedido.roteiro
     )
       return alert("Roteiro obrigatório!");
-
     const now = Date.now();
-
     const acaoDesc =
       (pedido.status === "finalizados" && novoStatus === "producao") ||
       (pedido.status === "producao" && novoStatus === "leads")
         ? `Retornou para ${mapearStatus(novoStatus).toUpperCase()}`
         : `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`;
-
     let updates = {
       status: novoStatus,
       tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
       tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
       historicoAcoes: getNovoHistorico(pedido, acaoDesc),
     };
-
     if (novoStatus === "producao") {
       updates.dataProducao = new Date().toLocaleString();
       updates.tsVenda = now;
@@ -332,7 +327,6 @@ export default function App() {
     if (novoStatus === "finalizados") {
       updates.dataSaida = new Date().toLocaleString();
     }
-
     await updateDoc(doc(db, "pedidos", id), updates);
     setIdSelecionado(null);
   };
@@ -384,18 +378,15 @@ export default function App() {
 
   const finalizarComWhats = (p) => {
     const phone = p.telefone.replace(/\D/g, "");
-    // Abre nova aba padrão (SIMPLIFICADO V71)
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
       "_blank"
     );
     moverPara(p.id, "finalizados");
   };
-
   const reativarLead = (e, p) => {
     e.stopPropagation();
     const phone = p.telefone.replace(/\D/g, "");
-    // Abre nova aba padrão (SIMPLIFICADO V71)
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
       "_blank"
@@ -816,7 +807,6 @@ export default function App() {
                   {mapearStatus(pedidoAtivo.status)}
                 </span>
               </div>
-
               <Details
                 ativo={pedidoAtivo}
                 atualizarPedido={atualizarPedido}
@@ -829,7 +819,6 @@ export default function App() {
                 servicos={servicos}
                 currentUser={currentUser}
               />
-
               {pedidoAtivo.status === "finalizados" && (
                 <div
                   style={{
@@ -933,7 +922,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-
               <HistoricoView historico={pedidoAtivo.historicoAcoes} />
             </div>
           ) : (
