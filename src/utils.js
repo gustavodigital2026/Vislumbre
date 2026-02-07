@@ -21,35 +21,63 @@ export const formatarDuracaoHoras = (ms) => {
   return `${minutos}m`;
 };
 
-// Usado para exibir valores no StatsPanel (apenas display)
+// Formatação Visual (Texto)
 export const formatarMoeda = (v) => {
+  if (v === 0 || v === "0") return "R$ 0,00";
   if (!v) return "R$ 0,00";
-  // Se já vier formatado, retorna
   if (typeof v === "string" && v.includes("R$")) return v;
 
-  const n = String(v).replace(/\D/g, "");
-  return "R$ " + (Number(n) / 100).toFixed(2).replace(".", ",");
+  const n = parseFloat(v);
+  if (isNaN(n)) return "R$ 0,00";
+
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 };
 
-// Usado para a digitação no input (máscara dinâmica)
+// Máscara de Input (Digitação)
 export const maskCurrency = (value) => {
-  let v = value.replace(/\D/g, ""); // Remove tudo que não é dígito
-  v = (Number(v) / 100).toFixed(2) + ""; // Divide por 100 para ter centavos
-  v = v.replace(".", ","); // Troca ponto por vírgula
-  v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1."); // Adiciona pontos de milhar
+  let v = value.replace(/\D/g, "");
+  v = (Number(v) / 100).toFixed(2) + "";
+  v = v.replace(".", ",");
+  v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
   return "R$ " + v;
 };
 
-// Usado para converter datas antigas (strings) em números para os gráficos
+// NOVO: Converte "R$ 1.200,50" para o número 1200.50 (Essencial para estatísticas)
+export const converterValor = (valorString) => {
+  if (!valorString) return 0;
+  if (typeof valorString === "number") return valorString;
+
+  // Remove R$, espaços e pontos de milhar, troca vírgula por ponto
+  const limpo = valorString
+    .toString()
+    .replace("R$", "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+  const numero = parseFloat(limpo);
+
+  return isNaN(numero) ? 0 : numero;
+};
+
 export const parseDataSegura = (valor) => {
   if (!valor) return 0;
   if (typeof valor === "number") return valor;
   try {
-    // Tenta converter formato "DD/MM/AAAA, HH:mm:ss"
-    const [data, hora] = valor.split(", ");
-    if (data && hora) {
-      const [dia, mes, ano] = data.split("/");
-      const [h, m, s] = hora.split(":");
+    // Tenta converter string de data pt-BR para timestamp
+    // Formato esperado: "DD/MM/AAAA HH:mm:ss" ou similar
+    if (valor.includes("/")) {
+      const [dataPart, horaPart] = valor.split(" ");
+      const [dia, mes, ano] = dataPart.split("/");
+
+      let h = 0,
+        m = 0,
+        s = 0;
+      if (horaPart) {
+        const times = horaPart.split(":");
+        h = times[0] || 0;
+        m = times[1] || 0;
+        s = times[2] || 0;
+      }
       return new Date(ano, mes - 1, dia, h, m, s).getTime();
     }
   } catch (e) {}

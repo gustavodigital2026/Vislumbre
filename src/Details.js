@@ -1,7 +1,6 @@
 import React, { useRef } from "react";
 import { maskCurrency } from "./utils";
 
-// Componente auxiliar para áreas de upload (Drag & Drop + Lista)
 const FileArea = ({
   titulo,
   arquivos,
@@ -13,16 +12,13 @@ const FileArea = ({
   btnText,
 }) => {
   const inputRef = useRef(null);
-
-  // Converte arquivo único (legado) ou array em lista segura
   const lista = Array.isArray(arquivos) ? arquivos : arquivos ? [arquivos] : [];
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0)
       onUpload(e.dataTransfer.files);
-    }
   };
 
   return (
@@ -38,14 +34,6 @@ const FileArea = ({
         <label className="input-label" style={{ margin: 0 }}>
           {titulo}
         </label>
-
-        {/* Botão de inserir (visível apenas em leads para segurança ou para todos?)
-                    O usuário pediu: "inserido por arrasto ou inserção pelos arquivos"
-                    E: "diversos arquivos podem ser incluidos"
-                    Regra 1 anterior dizia: "apenas primeira etapa".
-                    Vou manter a inserção APENAS NO LEADS conforme Regra 1, 
-                    mas a exclusão para todos conforme o novo pedido.
-                */}
         {isLeads && (
           <button
             onClick={() => inputRef.current.click()}
@@ -66,14 +54,12 @@ const FileArea = ({
         <input
           type="file"
           ref={inputRef}
-          multiple // Permite vários
+          multiple
           style={{ display: "none" }}
           onChange={(e) => onUpload(e.target.files)}
           accept={accept}
         />
       </div>
-
-      {/* Área de Drag & Drop */}
       <div
         onDragOver={(e) => isLeads && e.preventDefault()}
         onDrop={(e) => isLeads && handleDrop(e)}
@@ -88,91 +74,92 @@ const FileArea = ({
           minHeight: "60px",
         }}
       >
-        {lista.map((url, i) => (
-          <div
-            key={i}
-            style={{
-              background: "white",
-              padding: "10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-            }}
-          >
+        {lista.map((item, i) => {
+          // VERIFICAÇÃO INTELIGENTE (Compatibilidade)
+          const isLegacy = typeof item === "string";
+          const url = isLegacy ? item : item.url;
+          const nomeExibido = isLegacy ? `Arquivo ${i + 1}` : item.name;
+
+          return (
             <div
+              key={i}
               style={{
+                background: "white",
+                padding: "10px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
-                overflow: "hidden",
+                justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "14px" }}>📎</span>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
+              <div
                 style={{
-                  color: "#334155",
-                  textDecoration: "none",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  maxWidth: "200px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  overflow: "hidden",
                 }}
               >
-                Arquivo {i + 1}
-              </a>
+                <span style={{ fontSize: "14px" }}>📎</span>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    color: "#334155",
+                    textDecoration: "none",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                  }}
+                  title={nomeExibido}
+                >
+                  {nomeExibido}
+                </a>
+              </div>
+              <div
+                style={{ display: "flex", gap: "10px", alignItems: "center" }}
+              >
+                {(url.includes(".mp3") ||
+                  url.includes(".wav") ||
+                  url.includes(".m4a")) && (
+                  <audio
+                    controls
+                    src={url}
+                    style={{ height: "25px", maxWidth: "150px" }}
+                  />
+                )}
+                <a
+                  href={url}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    color: "#3b82f6",
+                    textDecoration: "none",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                  }}
+                >
+                  ⬇
+                </a>
+                <span
+                  onClick={() => onDelete(item)}
+                  style={{
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    marginLeft: "5px",
+                  }}
+                  title="Excluir"
+                >
+                  ×
+                </span>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              {/* Player simples se for áudio */}
-              {(url.includes(".mp3") ||
-                url.includes(".wav") ||
-                url.includes(".m4a")) && (
-                <audio
-                  controls
-                  src={url}
-                  style={{ height: "25px", maxWidth: "150px" }}
-                />
-              )}
-
-              <a
-                href={url}
-                download
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  color: "#3b82f6",
-                  textDecoration: "none",
-                  fontSize: "11px",
-                  fontWeight: "600",
-                }}
-              >
-                ⬇
-              </a>
-
-              {/* BOTÃO DE EXCLUIR: Disponível para TODOS (conforme pedido) */}
-              <span
-                onClick={() => onDelete(url)}
-                style={{
-                  color: "#ef4444",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  marginLeft: "5px",
-                }}
-                title="Excluir arquivo"
-              >
-                ×
-              </span>
-            </div>
-          </div>
-        ))}
-
+          );
+        })}
         {lista.length === 0 && (
           <div
             style={{
@@ -182,9 +169,7 @@ const FileArea = ({
               padding: "10px",
             }}
           >
-            {isLeads
-              ? emptyMsg || "Arraste arquivos aqui..."
-              : "Nenhum arquivo."}
+            {isLeads ? emptyMsg || "Arraste arquivos..." : "Nenhum arquivo."}
           </div>
         )}
       </div>
@@ -215,15 +200,12 @@ export default function Details({
         boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
       }}
     >
-      {/* CABEÇALHO */}
       <div style={{ marginBottom: "20px" }}>
-        <label className="input-label">Nome do Cliente</label>
+        <label className="input-label">Nome Cliente</label>
         <input
           className="modern-input"
           value={ativo.cliente}
           onChange={(e) => atualizarPedido(ativo.id, "cliente", e.target.value)}
-          placeholder="Nome do Cliente"
-          style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b" }}
         />
         <div
           style={{
@@ -241,7 +223,6 @@ export default function Details({
               onChange={(e) =>
                 atualizarPedido(ativo.id, "telefone", e.target.value)
               }
-              placeholder="(00) 00000-0000"
             />
           </div>
           <div>
@@ -262,7 +243,6 @@ export default function Details({
           </div>
         </div>
       </div>
-
       <hr
         style={{
           border: "0",
@@ -270,8 +250,6 @@ export default function Details({
           margin: "20px 0",
         }}
       />
-
-      {/* VALOR */}
       <div style={{ marginBottom: "20px" }}>
         <label className="input-label">💰 Valor (Apenas Leads)</label>
         <input
@@ -280,31 +258,24 @@ export default function Details({
           onChange={(e) =>
             atualizarPedido(ativo.id, "valorRaw", maskCurrency(e.target.value))
           }
-          placeholder="R$ 0,00"
           disabled={!isLeads}
           style={{
             background: isLeads ? "white" : "#f1f5f9",
-            cursor: isLeads ? "text" : "not-allowed",
             maxWidth: "200px",
           }}
         />
       </div>
 
-      {/* COMPROVANTES (Múltiplos) */}
       <FileArea
-        titulo="📄 Comprovantes / Documentos"
-        arquivos={
-          ativo.comprovantes || ativo.comprovanteUrl /* Fallback legado */
-        }
-        onUpload={(files) => handleUpload(files, "comprovantes", ativo.id)}
-        onDelete={(url) => handleDeleteFile(url, "comprovantes", ativo.id)}
+        titulo="📄 Comprovantes"
+        arquivos={ativo.comprovantes || ativo.comprovanteUrl}
+        onUpload={(f) => handleUpload(f, "comprovantes", ativo.id)}
+        onDelete={(u) => handleDeleteFile(u, "comprovantes", ativo.id)}
         accept="image/*,.pdf"
         isLeads={isLeads}
-        btnText="+ Add Comprovante"
-        emptyMsg="Arraste comprovantes ou documentos..."
+        btnText="+ Add Doc"
       />
 
-      {/* ROTEIRO */}
       <div style={{ marginBottom: "20px" }}>
         <div
           style={{
@@ -340,7 +311,6 @@ export default function Details({
           rows={5}
           value={ativo.roteiro || ""}
           onChange={(e) => atualizarPedido(ativo.id, "roteiro", e.target.value)}
-          placeholder="Cole o roteiro ou letra aqui..."
           disabled={!isLeads}
           style={{ background: isLeads ? "white" : "#f1f5f9" }}
         />
@@ -352,24 +322,21 @@ export default function Details({
           }}
           value={ativo.obs || ""}
           onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
-          placeholder="Observações internas"
+          placeholder="Obs. Internas"
           disabled={!isLeads}
         />
       </div>
 
-      {/* ÁUDIOS / PROJETOS (Múltiplos) */}
       <FileArea
-        titulo="🎙️ Arquivos do Projeto (Áudio/Vídeo)"
+        titulo="🎙️ Arquivos do Projeto"
         arquivos={ativo.audios}
-        onUpload={(files) => handleUpload(files, "audios", ativo.id)}
-        onDelete={(url) => handleDeleteFile(url, "audios", ativo.id)}
+        onUpload={(f) => handleUpload(f, "audios", ativo.id)}
+        onDelete={(u) => handleDeleteFile(u, "audios", ativo.id)}
         accept="audio/*,video/*"
         isLeads={isLeads}
         btnText="+ Add Áudio"
-        emptyMsg="Arraste arquivos de produção aqui..."
       />
 
-      {/* BOTÕES DE AÇÃO */}
       <div
         style={{
           display: "flex",
@@ -385,10 +352,9 @@ export default function Details({
             className="btn-primary"
             style={{ background: "#0ea5e9" }}
           >
-            Mover para Produção →
+            Produção →
           </button>
         )}
-
         {ativo.status === "producao" && (
           <>
             <button
@@ -409,18 +375,12 @@ export default function Details({
               onClick={() => finalizarComWhats(ativo)}
               disabled={loadingDelivery}
               className="btn-primary"
-              style={{
-                background: "#22c55e",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
+              style={{ background: "#22c55e" }}
             >
-              {loadingDelivery ? "✨ Gerando texto..." : "Finalizar com Whats"}
+              {loadingDelivery ? "✨ Criando..." : "Finalizar (Whats)"}
             </button>
           </>
         )}
-
         {ativo.status === "finalizados" && (
           <button
             onClick={() => moverPara(ativo.id, "producao")}
@@ -434,7 +394,7 @@ export default function Details({
               fontWeight: "600",
             }}
           >
-            Devolver para Produção
+            Devolver
           </button>
         )}
       </div>

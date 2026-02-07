@@ -27,10 +27,9 @@ import {
   AdminServicesPanel,
   AdminGeneralPanel,
 } from "./components/AdminPanels";
-import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
+import { mapearStatus, formatarDuracaoHoras } from "./utils";
 import "./styles.css";
 
-// --- APP PRINCIPAL ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("vislumbre_user");
@@ -40,6 +39,7 @@ export default function App() {
   const [pedidos, setPedidos] = useState([]);
   const [servicos, setServicos] = useState([]);
 
+  // Configs
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("vislumbre_google_key") || ""
   );
@@ -50,70 +50,23 @@ export default function App() {
     () => Number(localStorage.getItem("vislumbre_reactivation_hours")) || 24
   );
   const [promptIA, setPromptIA] = useState(
-    () =>
-      localStorage.getItem("vislumbre_prompt_ia") ||
-      "Crie um roteiro criativo para um serviço de {servico}. O nome do cliente é {cliente}. Detalhes importantes: {obs}."
+    () => localStorage.getItem("vislumbre_prompt_ia") || ""
   );
   const [promptDelivery, setPromptDelivery] = useState(
-    () =>
-      localStorage.getItem("vislumbre_prompt_delivery") ||
-      "Escreva uma mensagem de WhatsApp curta e cordial para {cliente} entregando o serviço de {servico}. Use emojis."
+    () => localStorage.getItem("vislumbre_prompt_delivery") || ""
   );
 
+  // UI
   const [showConfig, setShowConfig] = useState(false);
-  const [loadingIA, setLoadingIA] = useState(false);
-  const [loadingDelivery, setLoadingDelivery] = useState(false);
   const [idSelecionado, setIdSelecionado] = useState(null);
   const [novoTel, setNovoTel] = useState("");
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
+  const [loadingDelivery, setLoadingDelivery] = useState(false);
+  const [loadingIA, setLoadingIA] = useState(false);
 
-  // FAXINA 7 DIAS
-  useEffect(() => {
-    const executarFaxina = async () => {
-      if (!currentUser || currentUser.role !== "admin") return;
-      const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
-      const agora = Date.now();
-      try {
-        const q = query(
-          collection(db, "pedidos"),
-          where("status", "==", "finalizados")
-        );
-        const snapshot = await getDocs(q);
-        snapshot.forEach(async (d) => {
-          const data = d.data();
-          if (data.tsSaida && agora - data.tsSaida > SETE_DIAS_MS) {
-            if (data.audios && data.audios.length > 0) {
-              const promessasDelecao = data.audios.map((url) => {
-                try {
-                  const fileRef = ref(storage, url);
-                  return deleteObject(fileRef).catch(() => null);
-                } catch (e) {
-                  return null;
-                }
-              });
-              await Promise.all(promessasDelecao);
-              await updateDoc(doc(db, "pedidos", d.id), {
-                audios: [],
-                historicoAcoes: [
-                  {
-                    user: "Sistema",
-                    desc: "🗑️ Áudios expirados (7 dias) removidos.",
-                    data: new Date().toLocaleString(),
-                    timestamp: Date.now(),
-                  },
-                  ...(data.historicoAcoes || []),
-                ],
-              });
-            }
-          }
-        });
-      } catch (e) {}
-    };
-    executarFaxina();
-  }, [currentUser]);
-
+  // Carregar Dados
   useEffect(() => {
     const unsub = onSnapshot(
       query(collection(db, "pedidos"), orderBy("tsEntrada", "desc")),
@@ -128,7 +81,6 @@ export default function App() {
     );
     return () => unsub();
   }, []);
-
   useEffect(() => {
     const unsub = onSnapshot(
       query(collection(db, "servicos"), orderBy("ordem", "asc")),
@@ -137,13 +89,8 @@ export default function App() {
         if (lista.length === 0) {
           addDoc(collection(db, "servicos"), {
             nome: "Jingle",
-            cor: "#f59e0b",
-            ordem: 0,
-          });
-          addDoc(collection(db, "servicos"), {
-            nome: "Vídeo",
             cor: "#3b82f6",
-            ordem: 1,
+            ordem: 0,
           });
         } else {
           setServicos(lista);
@@ -161,312 +108,67 @@ export default function App() {
     localStorage.setItem("vislumbre_prompt_delivery", promptDelivery);
   }, [apiKey, modeloIA, horasReativacao, promptIA, promptDelivery]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("vislumbre_user");
-    setCurrentUser(null);
-  };
+  // Faxina 7 Dias
+  useEffect(() => {
+    const executarFaxina = async () => {
+      if (!currentUser || currentUser.role !== "admin") return;
+      const q = query(
+        collection(db, "pedidos"),
+        where("status", "==", "finalizados")
+      );
+      const snapshot = await getDocs(q);
+      snapshot.forEach(async (d) => {
+        const data = d.data();
+        if (
+          data.tsSaida &&
+          Date.now() - data.tsSaida > 604800000 &&
+          data.audios?.length > 0
+        ) {
+          const p = data.audios.map((item) => {
+            const url = typeof item === "string" ? item : item.url;
+            return deleteObject(ref(storage, url)).catch(() => null);
+          });
+          await Promise.all(p);
+          await updateDoc(doc(db, "pedidos", d.id), {
+            audios: [],
+            historicoAcoes: [
+              {
+                user: "Sistema",
+                desc: "Faxina 7 dias",
+                data: new Date().toLocaleString(),
+              },
+              ...(data.historicoAcoes || []),
+            ],
+          });
+        }
+      });
+    };
+    executarFaxina();
+  }, [currentUser]);
 
-  const getNovoHistorico = (pedido, desc) => [
+  // --- FUNÇÕES AUXILIARES DE HISTÓRICO E TEMPO ---
+  const getNovoHistorico = (p, d) => [
     {
       user: currentUser?.nome || "Sistema",
-      desc,
+      desc: d,
       data: new Date().toLocaleString(),
-      timestamp: Date.now(),
     },
-    ...(pedido.historicoAcoes || []),
+    ...(p.historicoAcoes || []),
   ];
+
   const getResponsavel = (historico, palavraChave) => {
     const acao = historico?.find((h) =>
       h.desc.toUpperCase().includes(palavraChave.toUpperCase())
     );
     return acao ? acao.user : "Sistema";
   };
+
   const calcularDuracao = (inicio, fim) => {
     if (!inicio || !fim) return "-";
     return formatarDuracaoHoras(fim - inicio);
   };
 
-  const adicionarLead = async () => {
-    try {
-      const docRef = await addDoc(collection(db, "pedidos"), {
-        cliente: "",
-        telefone: novoTel || "",
-        status: "leads",
-        obs: "",
-        servico: servicos.length > 0 ? servicos[0].nome : "Outros",
-        valorRaw: "",
-        comprovantes: [],
-        audios: [],
-        roteiro: "",
-        tsEntrada: Date.now(),
-        dataEntrada: new Date().toLocaleString(),
-        historicoAcoes: [
-          {
-            user: currentUser.nome,
-            desc: "Criou o Lead",
-            data: new Date().toLocaleString(),
-            timestamp: Date.now(),
-          },
-        ],
-      });
-      setNovoTel("");
-      setIdSelecionado(docRef.id);
-    } catch (e) {
-      alert("Erro: " + e.message);
-    }
-  };
-  const atualizarPedido = async (id, campo, valor) =>
-    await updateDoc(doc(db, "pedidos", id), { [campo]: valor });
-
-  const moverPara = async (id, novoStatus) => {
-    const pedido = pedidos.find((p) => p.id === id);
-    if (
-      novoStatus === "producao" &&
-      pedido.status === "leads" &&
-      !pedido.roteiro
-    )
-      return alert("Roteiro obrigatório!");
-    const now = Date.now();
-    const acaoDesc =
-      (pedido.status === "finalizados" && novoStatus === "producao") ||
-      (pedido.status === "producao" && novoStatus === "leads")
-        ? `Retornou para ${mapearStatus(novoStatus).toUpperCase()}`
-        : `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`;
-    let updates = {
-      status: novoStatus,
-      tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
-      tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
-      historicoAcoes: getNovoHistorico(pedido, acaoDesc),
-    };
-    if (novoStatus === "producao") {
-      updates.dataProducao = new Date().toLocaleString();
-      updates.tsVenda = now;
-    }
-    if (novoStatus === "finalizados") {
-      updates.dataSaida = new Date().toLocaleString();
-    }
-    await updateDoc(doc(db, "pedidos", id), updates);
-    setIdSelecionado(null);
-  };
-
-  // --- FUNÇÃO DE UPLOAD GENÉRICA (Múltiplos Arquivos) ---
-  const handleUpload = async (fileList, campo, pedidoId) => {
-    if (!fileList || fileList.length === 0) return;
-    const pedido = pedidos.find((p) => p.id === pedidoId);
-    if (!pedido) return;
-
-    try {
-      const novosLinks = [];
-      // Loop para enviar todos os arquivos
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
-        const pasta = campo === "audios" ? "audios" : "comprovantes";
-        const storageRef = ref(storage, `${pasta}/${Date.now()}_${file.name}`);
-
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        novosLinks.push(url);
-      }
-
-      // Atualiza o banco (mescla com os existentes)
-      const listaAtual = pedido[campo] || [];
-      // Se for comprovante antigo (string), converte pra array
-      const listaSegura = Array.isArray(listaAtual)
-        ? listaAtual
-        : pedido.comprovanteUrl
-        ? [pedido.comprovanteUrl]
-        : [];
-
-      await updateDoc(doc(db, "pedidos", pedidoId), {
-        [campo]: [...listaSegura, ...novosLinks],
-        historicoAcoes: getNovoHistorico(
-          pedido,
-          `Adicionou arquivos em ${campo}`
-        ),
-      });
-    } catch (err) {
-      alert("Erro no upload: " + err.message);
-    }
-  };
-
-  // --- FUNÇÃO DE DELETAR ARQUIVO (Genérica) ---
-  const handleDeleteFile = async (urlParaRemover, campo, pedidoId) => {
-    if (window.confirm("Tem certeza que deseja excluir este arquivo?")) {
-      try {
-        // Tenta deletar do Storage (pode falhar se já não existir, mas seguimos)
-        try {
-          const fileRef = ref(storage, urlParaRemover);
-          await deleteObject(fileRef);
-        } catch (e) {
-          console.log("Arquivo já não existia no storage");
-        }
-
-        const pedido = pedidos.find((p) => p.id === pedidoId);
-        const listaAtual = pedido[campo] || [];
-        // Filtra removendo o item clicado
-        const novaLista = listaAtual.filter((u) => u !== urlParaRemover);
-
-        await updateDoc(doc(db, "pedidos", pedidoId), {
-          [campo]: novaLista,
-        });
-      } catch (e) {
-        alert("Erro ao excluir: " + e.message);
-      }
-    }
-  };
-
-  // WHATSAPP COM IA
-  const finalizarComWhats = async (p) => {
-    const phone = p.telefone.replace(/\D/g, "");
-    let mensagem = "Seu projeto está pronto.";
-
-    if (apiKey) {
-      setLoadingDelivery(true);
-      try {
-        const promptFinal = `${promptDelivery
-          .replace(/{cliente}/g, p.cliente || "Cliente")
-          .replace(/{servico}/g, p.servico || "projeto")}
-                  --- CONTEXTO DO PROJETO (ROTEIRO/LETRA) ---
-                  ${p.roteiro || "Sem roteiro definido."}`;
-
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: promptFinal }] }],
-            }),
-          }
-        );
-
-        const d = await res.json();
-        const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (txt) mensagem = txt;
-      } catch (e) {
-        console.error("Erro IA:", e);
-      } finally {
-        setLoadingDelivery(false);
-      }
-    }
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(
-        mensagem
-      )}`,
-      "_blank"
-    );
-    moverPara(p.id, "finalizados");
-  };
-
-  const reativarLead = (e, p) => {
-    e.stopPropagation();
-    const phone = p.telefone.replace(/\D/g, "");
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
-      "_blank"
-    );
-  };
-
-  const gerarRoteiroIA = async (p) => {
-    if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
-    setLoadingIA(true);
-    const promptFinal = promptIA
-      .replace(/{cliente}/g, p.cliente || "Cliente")
-      .replace(/{servico}/g, p.servico || "Serviço")
-      .replace(/{obs}/g, p.obs || "Sem observações");
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptFinal }] }],
-          }),
-        }
-      );
-      const d = await res.json();
-      const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (txt)
-        await updateDoc(doc(db, "pedidos", p.id), {
-          roteiro: txt,
-          historicoAcoes: getNovoHistorico(p, "Gerou Roteiro com IA"),
-        });
-    } catch (e) {
-      alert("Erro IA");
-    } finally {
-      setLoadingIA(false);
-    }
-  };
-
-  const handleResetSystem = async () => {
-    if (
-      window.confirm(
-        "🚨 PERIGO: Isso vai apagar TODOS os pedidos do sistema!\n\nTem certeza?"
-      ) &&
-      window.confirm("Última chance: Essa ação é irreversível.")
-    ) {
-      const snap = await getDocs(collection(db, "pedidos"));
-      await Promise.all(
-        snap.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id)))
-      );
-      alert("Sistema resetado.");
-      window.location.reload();
-    }
-  };
-
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
-  if (aba === "admin_team")
-    return <AdminTeamPanel voltar={() => setAba("leads")} />;
-  if (aba === "admin_services")
-    return (
-      <AdminServicesPanel servicos={servicos} voltar={() => setAba("leads")} />
-    );
-  if (aba === "admin_general")
-    return (
-      <AdminGeneralPanel
-        apiKey={apiKey}
-        setApiKey={setApiKey}
-        horas={horasReativacao}
-        setHoras={setHorasReativacao}
-        promptIA={promptIA}
-        setPromptIA={setPromptIA}
-        promptDelivery={promptDelivery}
-        setPromptDelivery={setPromptDelivery}
-        voltar={() => setAba("leads")}
-      />
-    );
-  if (aba === "stats")
-    return (
-      <StatsPanel
-        pedidos={pedidos}
-        servicos={servicos}
-        voltar={() => setAba("leads")}
-      />
-    );
-
-  const filterStart = filtroDataInicio
-    ? new Date(filtroDataInicio + "T00:00:00").getTime()
-    : 0;
-  const filterEnd = filtroDataFim
-    ? new Date(filtroDataFim + "T23:59:59.999").getTime()
-    : Infinity;
-
-  const listaFiltrada = pedidos.filter((p) => {
-    if (aba === "leads") {
-      if (p.status !== "leads" && p.status !== "pendentes") return false;
-    } else {
-      if (p.status !== aba) return false;
-    }
-    const matchTexto =
-      (p.cliente &&
-        p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) ||
-      (p.telefone && p.telefone.includes(termoBusca));
-    const pData = p.tsEntrada || 0;
-    return matchTexto && pData >= filterStart && pData <= filterEnd;
-  });
-
-  const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
+  // --- COMPONENTE DE HISTÓRICO (Visual) ---
   const HistoricoView = ({ historico }) => (
     <div
       style={{
@@ -515,6 +217,234 @@ export default function App() {
     </div>
   );
 
+  // --- AÇÕES DO SISTEMA ---
+  const handleUpload = async (fileList, campo, pedidoId) => {
+    if (!fileList || fileList.length === 0) return;
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    try {
+      const novosLinks = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const storageRef = ref(storage, `${campo}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        novosLinks.push({ name: file.name, url: url });
+      }
+      const listaAtual = Array.isArray(pedido[campo])
+        ? pedido[campo]
+        : pedido.comprovanteUrl
+        ? [pedido.comprovanteUrl]
+        : [];
+      await updateDoc(doc(db, "pedidos", pedidoId), {
+        [campo]: [...listaAtual, ...novosLinks],
+        historicoAcoes: getNovoHistorico(pedido, `Add ${campo}`),
+      });
+    } catch (e) {
+      alert("Erro upload: " + e.message);
+    }
+  };
+
+  const handleDeleteFile = async (itemParaRemover, campo, pid) => {
+    if (window.confirm("Excluir arquivo?")) {
+      const urlRef =
+        typeof itemParaRemover === "string"
+          ? itemParaRemover
+          : itemParaRemover.url;
+      try {
+        await deleteObject(ref(storage, urlRef)).catch(() => {});
+      } catch (e) {}
+      const pedido = pedidos.find((p) => p.id === pid);
+      const listaAtual = pedido[campo] || [];
+      const novaLista = listaAtual.filter((item) => {
+        const urlItem = typeof item === "string" ? item : item.url;
+        return urlItem !== urlRef;
+      });
+      await updateDoc(doc(db, "pedidos", pid), { [campo]: novaLista });
+    }
+  };
+
+  const finalizarComWhats = async (p) => {
+    const phone = p.telefone.replace(/\D/g, "");
+    let msg = "Seu projeto está pronto.";
+    if (apiKey) {
+      setLoadingDelivery(true);
+      try {
+        const prompt = `${promptDelivery
+          .replace(/{cliente}/g, p.cliente)
+          .replace(/{servico}/g, p.servico)} Contexto: ${p.roteiro}`;
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          }
+        );
+        const d = await res.json();
+        if (d.candidates?.[0]?.content?.parts?.[0]?.text)
+          msg = d.candidates[0].content.parts[0].text;
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoadingDelivery(false);
+      }
+    }
+    window.open(
+      `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(
+        msg
+      )}`,
+      "_blank"
+    );
+    moverPara(p.id, "finalizados");
+  };
+
+  const moverPara = async (id, status) => {
+    const p = pedidos.find((x) => x.id === id);
+    if (status === "producao" && p.status === "leads" && !p.roteiro)
+      return alert("Roteiro obrigatório!");
+    let up = {
+      status,
+      historicoAcoes: getNovoHistorico(p, `Moveu para ${status}`),
+    };
+    if (status === "producao") {
+      up.tsProducao = Date.now();
+      up.dataProducao = new Date().toLocaleString();
+    }
+    if (status === "finalizados") {
+      up.tsSaida = Date.now();
+      up.dataSaida = new Date().toLocaleString();
+    }
+    await updateDoc(doc(db, "pedidos", id), up);
+    setIdSelecionado(null);
+  };
+
+  const adicionarLead = async () => {
+    await addDoc(collection(db, "pedidos"), {
+      cliente: "",
+      telefone: novoTel,
+      status: "leads",
+      obs: "",
+      servico: servicos[0]?.nome,
+      valorRaw: "",
+      comprovantes: [],
+      audios: [],
+      roteiro: "",
+      tsEntrada: Date.now(),
+      dataEntrada: new Date().toLocaleString(),
+      historicoAcoes: [
+        {
+          user: currentUser.nome,
+          desc: "Criou",
+          data: new Date().toLocaleString(),
+        },
+      ],
+    });
+    setNovoTel("");
+  };
+  const atualizar = async (id, c, v) =>
+    await updateDoc(doc(db, "pedidos", id), { [c]: v });
+
+  const reativarLead = (e, p) => {
+    e.stopPropagation();
+    const phone = p.telefone.replace(/\D/g, "");
+    window.open(
+      `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
+      "_blank"
+    );
+  };
+
+  const gerarRoteiroIA = async (p) => {
+    setLoadingIA(true);
+    try {
+      const prompt = promptIA
+        .replace(/{cliente}/g, p.cliente)
+        .replace(/{servico}/g, p.servico)
+        .replace(/{obs}/g, p.obs);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        }
+      );
+      const d = await res.json();
+      const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (txt) await updateDoc(doc(db, "pedidos", p.id), { roteiro: txt });
+    } catch (e) {
+      alert("Erro IA");
+    } finally {
+      setLoadingIA(false);
+    }
+  };
+
+  const handleResetSystem = async () => {
+    if (window.confirm("🚨 PERIGO: Apagar tudo?")) {
+      const snap = await getDocs(collection(db, "pedidos"));
+      await Promise.all(
+        snap.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id)))
+      );
+      alert("Resetado.");
+      window.location.reload();
+    }
+  };
+  const handleLogout = () => {
+    localStorage.removeItem("vislumbre_user");
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+  if (aba === "stats")
+    return (
+      <StatsPanel
+        pedidos={pedidos}
+        servicos={servicos}
+        voltar={() => setAba("leads")}
+      />
+    );
+  if (aba.startsWith("admin")) {
+    if (aba === "admin_team")
+      return <AdminTeamPanel voltar={() => setAba("leads")} />;
+    if (aba === "admin_services")
+      return (
+        <AdminServicesPanel
+          servicos={servicos}
+          voltar={() => setAba("leads")}
+        />
+      );
+    return (
+      <AdminGeneralPanel
+        apiKey={apiKey}
+        setApiKey={setApiKey}
+        horas={horasReativacao}
+        setHoras={setHorasReativacao}
+        promptIA={promptIA}
+        setPromptIA={setPromptIA}
+        promptDelivery={promptDelivery}
+        setPromptDelivery={setPromptDelivery}
+        voltar={() => setAba("leads")}
+      />
+    );
+  }
+
+  const listaFiltrada = pedidos.filter((p) => {
+    if (aba === "leads") {
+      if (p.status !== "leads" && p.status !== "pendentes") return false;
+    } else {
+      if (p.status !== aba) return false;
+    }
+    const txt = (p.cliente + p.telefone).toLowerCase();
+    const dt = p.tsEntrada || 0;
+    const ini = filtroDataInicio
+      ? new Date(filtroDataInicio + "T00:00").getTime()
+      : 0;
+    const fim = filtroDataFim
+      ? new Date(filtroDataFim + "T23:59").getTime()
+      : Infinity;
+    return txt.includes(termoBusca.toLowerCase()) && dt >= ini && dt <= fim;
+  });
+
+  // --- RENDERIZAÇÃO PRINCIPAL ---
   return (
     <div
       style={{
@@ -522,9 +452,10 @@ export default function App() {
         display: "flex",
         flexDirection: "column",
         fontFamily: "Segoe UI, sans-serif",
+        overflow: "hidden",
       }}
-      onClick={() => setShowConfig(false)}
     >
+      {/* HEADER FIXO */}
       <header
         style={{
           padding: "15px 25px",
@@ -533,10 +464,11 @@ export default function App() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          flexShrink: 0,
+          zIndex: 50,
         }}
       >
-        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
           <div style={{ display: "flex", alignItems: "center" }}>
             <img
               src="/logo.jpeg"
@@ -547,24 +479,21 @@ export default function App() {
                 marginRight: "10px",
               }}
             />
-            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
-              Vislumbre
-            </h2>
+            <h2 style={{ margin: 0, fontSize: "20px" }}>Vislumbre</h2>
           </div>
           <span
             style={{
               fontSize: "11px",
               background: "#3b82f6",
-              color: "white",
               padding: "4px 10px",
               borderRadius: "20px",
               fontWeight: "600",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
             }}
           >
             {currentUser.nome}
           </span>
+
+          {/* CONFIG BUTTON + DROPDOWN FIXADO */}
           {currentUser.role === "admin" && (
             <div style={{ position: "relative" }}>
               <button
@@ -575,12 +504,11 @@ export default function App() {
                 style={{
                   background: "rgba(255,255,255,0.1)",
                   border: "none",
+                  color: "white",
                   cursor: "pointer",
-                  fontSize: "16px",
-                  marginLeft: "10px",
                   padding: "8px",
                   borderRadius: "8px",
-                  transition: "0.2s",
+                  marginLeft: "10px",
                 }}
               >
                 ⚙️ Ajustes
@@ -589,28 +517,25 @@ export default function App() {
                 <div
                   style={{
                     position: "absolute",
-                    top: "45px",
+                    top: "110%",
                     left: "0",
                     background: "white",
                     color: "#333",
-                    boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-                    borderRadius: "10px",
-                    overflow: "hidden",
-                    zIndex: 100,
                     width: "200px",
+                    borderRadius: "8px",
+                    boxShadow: "0 5px 15px rgba(0,0,0,0.2)",
+                    zIndex: 100,
                     border: "1px solid #e2e8f0",
+                    overflow: "hidden",
                   }}
                 >
                   <div
                     onClick={() => setAba("admin_team")}
                     style={{
                       padding: "12px 15px",
-                      cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
                       fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
                     }}
                   >
                     👥 Equipe
@@ -619,55 +544,44 @@ export default function App() {
                     onClick={() => setAba("admin_services")}
                     style={{
                       padding: "12px 15px",
-                      cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
                       fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
                     }}
                   >
                     🛠️ Serviços
                   </div>
                   <div
+                    onClick={() => setAba("admin_general")}
+                    style={{
+                      padding: "12px 15px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    ⚙️ Definições
+                  </div>
+                  <div
                     onClick={() => setAba("stats")}
                     style={{
                       padding: "12px 15px",
-                      cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
                       fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
                     }}
                   >
                     📊 Estatísticas
                   </div>
                   <div
-                    onClick={() => setAba("admin_general")}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: "#3b82f6",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    ⚙️ Definições Gerais
-                  </div>
-                  <div
                     onClick={handleResetSystem}
                     style={{
                       padding: "12px 15px",
-                      cursor: "pointer",
                       color: "#ef4444",
+                      cursor: "pointer",
                       fontSize: "13px",
                       background: "#fef2f2",
-                      fontWeight: "600",
+                      fontWeight: "bold",
                     }}
                   >
                     🗑️ Resetar Tudo
@@ -676,28 +590,10 @@ export default function App() {
               )}
             </div>
           )}
-          {currentUser.role !== "admin" && currentUser.acessoStats && (
-            <button
-              onClick={() => setAba("stats")}
-              style={{
-                background: "#8b5cf6",
-                border: "none",
-                color: "white",
-                cursor: "pointer",
-                marginLeft: "10px",
-                borderRadius: "6px",
-                padding: "6px 12px",
-                fontSize: "13px",
-                fontWeight: "600",
-              }}
-            >
-              📊 Stats
-            </button>
-          )}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           {[
-            { id: "leads", l: "Leads & Criação" },
+            { id: "leads", l: "Leads" },
             { id: "producao", l: "Produção" },
             { id: "finalizados", l: "Entregues" },
           ].map((m) => (
@@ -709,14 +605,13 @@ export default function App() {
               }}
               style={{
                 background: aba === m.id ? "#fbbf24" : "rgba(255,255,255,0.1)",
-                color: aba === m.id ? "#1e293b" : "#94a3b8",
                 border: "none",
                 padding: "8px 16px",
                 borderRadius: "6px",
                 cursor: "pointer",
+                color: aba === m.id ? "#1e293b" : "#94a3b8",
                 fontWeight: "600",
                 fontSize: "13px",
-                transition: "0.2s",
               }}
             >
               {m.l}
@@ -727,12 +622,12 @@ export default function App() {
             style={{
               background: "#ef4444",
               border: "none",
-              color: "white",
-              borderRadius: "6px",
-              cursor: "pointer",
               padding: "8px 16px",
-              fontWeight: "600",
+              borderRadius: "6px",
+              color: "white",
+              cursor: "pointer",
               fontSize: "13px",
+              fontWeight: "600",
             }}
           >
             Sair
@@ -740,33 +635,57 @@ export default function App() {
         </div>
       </header>
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <Sidebar
-          aba={aba}
-          lista={listaFiltrada}
-          idSelecionado={idSelecionado}
-          setIdSelecionado={setIdSelecionado}
-          novoTel={novoTel}
-          setNovoTel={setNovoTel}
-          adicionarLead={adicionarLead}
-          reativarLead={reativarLead}
-          termoBusca={termoBusca}
-          setTermoBusca={setTermoBusca}
-          filtroDataInicio={filtroDataInicio}
-          setFiltroDataInicio={setFiltroDataInicio}
-          filtroDataFim={filtroDataFim}
-          setFiltroDataFim={setFiltroDataFim}
-          horasReativacao={horasReativacao}
-        />
+      {/* ÁREA PRINCIPAL */}
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        {/* SIDEBAR */}
+        <div
+          style={{
+            width: "350px",
+            minWidth: "350px",
+            borderRight: "1px solid #e2e8f0",
+            background: "white",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 10,
+          }}
+        >
+          <Sidebar
+            aba={aba}
+            lista={listaFiltrada}
+            idSelecionado={idSelecionado}
+            setIdSelecionado={setIdSelecionado}
+            novoTel={novoTel}
+            setNovoTel={setNovoTel}
+            adicionarLead={adicionarLead}
+            reativarLead={reativarLead}
+            termoBusca={termoBusca}
+            setTermoBusca={setTermoBusca}
+            filtroDataInicio={filtroDataInicio}
+            setFiltroDataInicio={setFiltroDataInicio}
+            filtroDataFim={filtroDataFim}
+            setFiltroDataFim={setFiltroDataFim}
+            horasReativacao={horasReativacao}
+          />
+        </div>
+
+        {/* DETAILS */}
         <div
           style={{
             flex: 1,
-            padding: "20px",
-            overflowY: "auto",
             background: "#f8fafc",
+            overflowY: "auto",
+            padding: "20px",
+            position: "relative",
           }}
         >
-          {pedidoAtivo ? (
+          {idSelecionado && pedidos.find((p) => p.id === idSelecionado) ? (
             <div style={{ maxWidth: "900px", margin: "0 auto" }}>
               <div style={{ marginBottom: "20px", textAlign: "right" }}>
                 <span
@@ -780,26 +699,29 @@ export default function App() {
                     textTransform: "uppercase",
                   }}
                 >
-                  {mapearStatus(pedidoAtivo.status)}
+                  {mapearStatus(
+                    pedidos.find((p) => p.id === idSelecionado).status
+                  )}
                 </span>
               </div>
 
               <Details
-                ativo={pedidoAtivo}
-                atualizarPedido={atualizarPedido}
+                ativo={pedidos.find((p) => p.id === idSelecionado)}
+                atualizarPedido={atualizar}
                 moverPara={moverPara}
                 finalizarComWhats={finalizarComWhats}
                 gerarRoteiroIA={gerarRoteiroIA}
                 loadingIA={loadingIA}
                 loadingDelivery={loadingDelivery}
-                // Funções Genéricas
                 handleUpload={handleUpload}
                 handleDeleteFile={handleDeleteFile}
                 servicos={servicos}
                 currentUser={currentUser}
               />
 
-              {pedidoAtivo.status === "finalizados" && (
+              {/* --- ÁREA DE PERFORMANCE (RESTAURADA) --- */}
+              {pedidos.find((p) => p.id === idSelecionado).status ===
+                "finalizados" && (
                 <div
                   style={{
                     marginTop: "30px",
@@ -852,13 +774,17 @@ export default function App() {
                         }}
                       >
                         {calcularDuracao(
-                          pedidoAtivo.tsEntrada,
-                          pedidoAtivo.tsProducao
+                          pedidos.find((p) => p.id === idSelecionado).tsEntrada,
+                          pedidos.find((p) => p.id === idSelecionado).tsProducao
                         )}
                       </div>
                       <div style={{ fontSize: "12px", color: "#9a3412" }}>
                         Resp:{" "}
-                        {getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO")}
+                        {getResponsavel(
+                          pedidos.find((p) => p.id === idSelecionado)
+                            .historicoAcoes,
+                          "PRODUÇÃO"
+                        )}
                       </div>
                     </div>
                     <div
@@ -887,14 +813,16 @@ export default function App() {
                         }}
                       >
                         {calcularDuracao(
-                          pedidoAtivo.tsProducao,
-                          pedidoAtivo.tsSaida
+                          pedidos.find((p) => p.id === idSelecionado)
+                            .tsProducao,
+                          pedidos.find((p) => p.id === idSelecionado).tsSaida
                         )}
                       </div>
                       <div style={{ fontSize: "12px", color: "#5b21b6" }}>
                         Resp:{" "}
                         {getResponsavel(
-                          pedidoAtivo.historicoAcoes,
+                          pedidos.find((p) => p.id === idSelecionado)
+                            .historicoAcoes,
                           "FINALIZADO"
                         )}
                       </div>
@@ -902,21 +830,27 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <HistoricoView historico={pedidoAtivo.historicoAcoes} />
+
+              {/* --- HISTÓRICO (RESTAURADO) --- */}
+              <HistoricoView
+                historico={
+                  pedidos.find((p) => p.id === idSelecionado).historicoAcoes
+                }
+              />
             </div>
           ) : (
             <div
               style={{
                 textAlign: "center",
-                color: "#94a3b8",
                 marginTop: "100px",
+                color: "#94a3b8",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
               }}
             >
               <div style={{ fontSize: "40px", marginBottom: "10px" }}>👈</div>
-              Selecione um pedido ao lado para começar
+              Selecione um pedido ao lado
             </div>
           )}
         </div>

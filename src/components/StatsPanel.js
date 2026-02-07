@@ -1,19 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   formatarMoeda,
   formatarDuracaoHoras,
   parseDataSegura,
   normalizar,
+  converterValor,
 } from "../utils";
 
-// --- GRÁFICO ---
+// --- GRÁFICO DE LINHA ---
 const LineChart = ({ dados }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
   if (!dados || dados.length === 0) {
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-        Sem dados suficientes.
+        Sem dados suficientes para o gráfico.
       </div>
     );
   }
@@ -73,7 +74,6 @@ const LineChart = ({ dados }) => {
           stroke="#e2e8f0"
           strokeWidth="2"
         />
-
         {maxDataVal > 0 && (
           <>
             <line
@@ -95,7 +95,6 @@ const LineChart = ({ dados }) => {
             >
               {formatarMoeda(maxDataVal)}
             </text>
-
             <line
               x1={paddingLeft}
               y1={yHalf}
@@ -116,7 +115,6 @@ const LineChart = ({ dados }) => {
             </text>
           </>
         )}
-
         <text
           x={paddingLeft - 10}
           y={height - paddingBottom + 4}
@@ -126,7 +124,6 @@ const LineChart = ({ dados }) => {
         >
           R$ 0,00
         </text>
-
         {pathD && (
           <path
             d={pathD}
@@ -137,7 +134,6 @@ const LineChart = ({ dados }) => {
             strokeLinejoin="round"
           />
         )}
-
         {points.map((p, i) => (
           <g key={i}>
             <circle
@@ -175,7 +171,6 @@ const LineChart = ({ dados }) => {
             </text>
           </g>
         ))}
-
         {hoveredPoint && (
           <g
             transform={`translate(${hoveredPoint.x}, ${hoveredPoint.y - 65})`}
@@ -220,28 +215,29 @@ const LineChart = ({ dados }) => {
 
 // --- PAINEL PRINCIPAL ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
-  // DATA PADRÃO: 10 DIAS ATRÁS
   const [dataInicio, setDataInicio] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 10);
+    d.setDate(d.getDate() - 30);
     return d.toISOString().split("T")[0];
-  });
-
+  }); // Padrão: 30 dias
   const [dataFim, setDataFim] = useState(
     new Date().toISOString().split("T")[0]
   );
   const [viewMode, setViewMode] = useState("dia");
 
-  const calcularMetricas = () => {
+  // Hook useMemo para calcular apenas quando os dados mudarem
+  const metricas = useMemo(() => {
     const stats = {};
     const financeiro = {};
     const vendasRaw = {};
     let faturamentoTotal = 0;
     let totalDevolucoes = 0;
 
+    // Inicializa financeiro com serviços existentes
     servicos.forEach((s) => (financeiro[s.nome] = 0));
     financeiro["Outros"] = 0;
 
+    // Preenche eixo X se for modo dia
     if (viewMode === "dia") {
       let curr = new Date(dataInicio + "T00:00:00");
       const end = new Date(dataFim + "T23:59:59");
@@ -257,19 +253,21 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     const fimTs = new Date(dataFim + "T23:59:59.999").getTime();
 
     pedidos.forEach((pedido) => {
+      // Ordena histórico
       const historico = pedido.historicoAcoes || [];
       const histOrdenado = [...historico].sort(
         (a, b) =>
           parseDataSegura(a.timestamp || a.data) -
           parseDataSegura(b.timestamp || b.data)
       );
+
       let tsCriacao = pedido.tsEntrada;
 
       histOrdenado.forEach((acao) => {
         let acaoTs = parseDataSegura(acao.timestamp || acao.data);
         if (acaoTs < inicioTs || acaoTs > fimTs) return;
-        const usuario = acao.user || "Sistema";
 
+        const usuario = acao.user || "Sistema";
         if (!stats[usuario])
           stats[usuario] = {
             leads: 0,
@@ -278,31 +276,43 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             entregas: 0,
             tempoProducaoTotal: 0,
           };
+
         const desc = normalizar(acao.desc);
 
+        // 1. LEADS
         if (desc.includes("criou") || desc.includes("lead")) {
           stats[usuario].leads++;
           if (!tsCriacao) tsCriacao = acaoTs;
         }
 
+        // 2. VENDAS (Mover para Produção)
         if (desc.includes("producao") || desc.includes("produção")) {
           stats[usuario].vendas++;
           if (tsCriacao > 0 && acaoTs > tsCriacao)
             stats[usuario].tempoVendaTotal += acaoTs - tsCriacao;
-          const valor = Number(pedido.valorRaw || 0);
+
+          // CORREÇÃO DO VALOR: Usa a função converterValor
+          const valor = converterValor(pedido.valorRaw);
+
           if (pedido.devolvido) {
             totalDevolucoes += valor;
           } else {
-            const servico = pedido.servico || "Outros";
-            if (financeiro[servico] !== undefined) financeiro[servico] += valor;
-            else financeiro["Outros"] += valor;
+            // Associa ao serviço correto
+            const servico =
+              pedido.servico && financeiro[pedido.servico] !== undefined
+                ? pedido.servico
+                : "Outros";
+            financeiro[servico] = (financeiro[servico] || 0) + valor;
+
             faturamentoTotal += valor;
+
             const diaNormalizado = new Date(acaoTs).setHours(0, 0, 0, 0);
             vendasRaw[diaNormalizado] =
               (vendasRaw[diaNormalizado] || 0) + valor;
           }
         }
 
+        // 3. ENTREGAS
         if (desc.includes("finalizado") || desc.includes("entregue")) {
           stats[usuario].entregas++;
           const base = parseDataSegura(pedido.tsProducao) || tsCriacao;
@@ -312,6 +322,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
       });
     });
 
+    // Agrega dados para o gráfico
     const aggregated = {};
     const getWeekNumber = (d) => {
       d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -360,10 +371,6 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
           .toString()
           .substr(2)}`;
         sortVal = date.getFullYear() * 100 + date.getMonth();
-      } else if (viewMode === "ano") {
-        key = `${date.getFullYear()}`;
-        label = key;
-        sortVal = date.getFullYear();
       }
 
       if (!aggregated[key])
@@ -389,7 +396,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
         (a, b) => a.sortKey - b.sortKey
       ),
     };
-  };
+  }, [pedidos, dataInicio, dataFim, viewMode, servicos]);
 
   const {
     operadores,
@@ -397,23 +404,34 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     faturamentoTotal,
     totalDevolucoes,
     dadosGrafico,
-  } = calcularMetricas();
+  } = metricas;
 
+  // --- CORREÇÃO DO GRÁFICO DE PIZZA ---
   const gerarGraficoPizza = () => {
-    if (faturamentoTotal === 0) return "conic-gradient(#e2e8f0 0% 100%)";
+    // Se não tem faturamento, retorna cinza
+    if (!faturamentoTotal || faturamentoTotal <= 0)
+      return "conic-gradient(#f1f5f9 0% 100%)";
+
     let acumulado = 0;
-    const segmentos = Object.keys(financeiro)
-      .map((key) => {
-        const valor = financeiro[key];
-        if (valor === 0) return null;
+    const segmentos = [];
+
+    // Itera sobre todos os serviços que têm valor
+    Object.keys(financeiro).forEach((key) => {
+      const valor = financeiro[key];
+      if (valor > 0) {
+        const pct = (valor / faturamentoTotal) * 100;
+        const start = acumulado;
+        acumulado += pct;
+
+        // Busca a cor do serviço ou usa cinza se não achar
         const servicoObj = servicos.find((s) => s.nome === key);
-        const cor = servicoObj ? servicoObj.cor : "#94a3b8";
-        const porcentagem = (valor / faturamentoTotal) * 100;
-        const inicio = acumulado;
-        acumulado += porcentagem;
-        return `${cor} ${inicio}% ${acumulado}%`;
-      })
-      .filter(Boolean);
+        const cor = servicoObj ? servicoObj.cor : "#94a3b8"; // Cor fallback
+
+        segmentos.push(`${cor} ${start}% ${acumulado}%`);
+      }
+    });
+
+    if (segmentos.length === 0) return "conic-gradient(#f1f5f9 0% 100%)";
     return `conic-gradient(${segmentos.join(", ")})`;
   };
 
@@ -535,6 +553,8 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             >
               Distribuição
             </h3>
+
+            {/* GRÁFICO DE PIZZA CORRIGIDO */}
             <div
               style={{
                 width: "160px",
@@ -543,8 +563,11 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
                 background: gerarGraficoPizza(),
                 marginBottom: "20px",
                 boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                border: "4px solid white",
+                outline: "1px solid #e2e8f0",
               }}
             ></div>
+
             <div style={{ width: "100%" }}>
               {servicos.map((s) => (
                 <div
@@ -570,10 +593,38 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
                     {s.nome}
                   </span>
                   <span style={{ fontWeight: "bold" }}>
-                    {formatarMoeda(financeiro[s.nome])}
+                    {formatarMoeda(financeiro[s.nome] || 0)}
                   </span>
                 </div>
               ))}
+              {/* Mostra 'Outros' se houver */}
+              {financeiro["Outros"] > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    marginBottom: "8px",
+                    color: "#475569",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center" }}>
+                    <span
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        background: "#94a3b8",
+                        marginRight: "8px",
+                      }}
+                    ></span>
+                    Outros
+                  </span>
+                  <span style={{ fontWeight: "bold" }}>
+                    {formatarMoeda(financeiro["Outros"])}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
