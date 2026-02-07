@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 
-// --- PAINEL EQUIPE (Mantido) ---
+// --- PAINEL EQUIPE (Mantido IDÊNTICO) ---
 export const AdminTeamPanel = ({ voltar }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [novoNome, setNovoNome] = useState("");
@@ -160,7 +160,7 @@ export const AdminTeamPanel = ({ voltar }) => {
   );
 };
 
-// --- PAINEL SERVIÇOS (Mantido com Drag & Drop) ---
+// --- PAINEL SERVIÇOS (Mantido IDÊNTICO) ---
 export const AdminServicesPanel = ({ servicos, voltar }) => {
   const [nome, setNome] = useState("");
   const [cor, setCor] = useState("#3b82f6");
@@ -352,7 +352,7 @@ export const AdminServicesPanel = ({ servicos, voltar }) => {
   );
 };
 
-// --- PAINEL GERAL (Atualizado com Prompt de Entrega) ---
+// --- PAINEL GERAL (Adicionado PROMPT DE ENTREGA) ---
 export const AdminGeneralPanel = ({
   apiKey,
   setApiKey,
@@ -373,7 +373,6 @@ export const AdminGeneralPanel = ({
             Voltar
           </button>
         </div>
-
         <div className="card-panel">
           <div className="card-header">🤖 Configuração da IA (Gemini)</div>
           <div className="input-group">
@@ -387,20 +386,26 @@ export const AdminGeneralPanel = ({
             />
           </div>
 
-          {/* Prompt de Roteiro */}
           <div className="input-group" style={{ marginTop: "20px" }}>
             <label className="input-label">
-              Prompt para <strong>Roteiros</strong>
+              Prompt para <strong>Criação (Roteiro)</strong>
             </label>
             <textarea
               className="modern-input"
               rows={4}
               value={promptIA}
               onChange={(e) => setPromptIA(e.target.value)}
-              placeholder="Instruções para criar roteiros..."
+              placeholder="Ex: Crie uma letra de música..."
               style={{ fontFamily: "monospace", fontSize: "13px" }}
             />
-            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                marginTop: "8px",
+                lineHeight: "1.5",
+              }}
+            >
               Variáveis:{" "}
               <strong style={{ color: "#3b82f6" }}>{`{cliente}`}</strong>,{" "}
               <strong style={{ color: "#3b82f6" }}>{`{servico}`}</strong>,{" "}
@@ -408,7 +413,7 @@ export const AdminGeneralPanel = ({
             </p>
           </div>
 
-          {/* Prompt de Entrega (NOVO) */}
+          {/* --- NOVO CAMPO PEDIDO --- */}
           <div
             className="input-group"
             style={{
@@ -418,24 +423,33 @@ export const AdminGeneralPanel = ({
             }}
           >
             <label className="input-label">
-              Prompt para <strong>Mensagem de Entrega (WhatsApp)</strong>
+              Prompt para <strong>Entrega (WhatsApp)</strong>
             </label>
             <textarea
               className="modern-input"
               rows={4}
               value={promptDelivery}
               onChange={(e) => setPromptDelivery(e.target.value)}
-              placeholder="Ex: Escreva uma msg curta avisando {cliente} que..."
+              placeholder="Ex: Escreva uma mensagem curta para o cliente {cliente} avisando que..."
               style={{ fontFamily: "monospace", fontSize: "13px" }}
             />
-            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                marginTop: "8px",
+                lineHeight: "1.5",
+              }}
+            >
+              A IA usará o <strong>Roteiro/Letra</strong> do pedido como base
+              para criar a mensagem.
+              <br />
               Variáveis:{" "}
               <strong style={{ color: "#3b82f6" }}>{`{cliente}`}</strong>,{" "}
               <strong style={{ color: "#3b82f6" }}>{`{servico}`}</strong>
             </p>
           </div>
         </div>
-
         <div className="card-panel">
           <div className="card-header">⏰ Automação de Leads</div>
           <div className="input-group">

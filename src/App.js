@@ -55,23 +55,22 @@ export default function App() {
       "Crie um roteiro criativo para um serviço de {servico}. O nome do cliente é {cliente}. Detalhes importantes: {obs}."
   );
 
-  // NOVO ESTADO: Prompt de Entrega
   const [promptDelivery, setPromptDelivery] = useState(
     () =>
       localStorage.getItem("vislumbre_prompt_delivery") ||
-      "Escreva uma mensagem de WhatsApp curta e cordial avisando o cliente {cliente} que o serviço de {servico} foi finalizado e está sendo entregue. Use emojis."
+      "Escreva uma mensagem de WhatsApp curta e cordial para {cliente} entregando o serviço de {servico}. Use emojis."
   );
 
   const [showConfig, setShowConfig] = useState(false);
   const [loadingIA, setLoadingIA] = useState(false);
-  const [loadingDelivery, setLoadingDelivery] = useState(false); // Loading específico para o botão de entrega
+  const [loadingDelivery, setLoadingDelivery] = useState(false);
   const [idSelecionado, setIdSelecionado] = useState(null);
   const [novoTel, setNovoTel] = useState("");
   const [termoBusca, setTermoBusca] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
 
-  // ROBÔ FAXINEIRO
+  // FAXINA 7 DIAS
   useEffect(() => {
     const executarFaxina = async () => {
       if (!currentUser || currentUser.role !== "admin") return;
@@ -160,7 +159,7 @@ export default function App() {
     localStorage.setItem("vislumbre_model", modeloIA);
     localStorage.setItem("vislumbre_reactivation_hours", horasReativacao);
     localStorage.setItem("vislumbre_prompt_ia", promptIA);
-    localStorage.setItem("vislumbre_prompt_delivery", promptDelivery); // Salvando o novo prompt
+    localStorage.setItem("vislumbre_prompt_delivery", promptDelivery);
   }, [apiKey, modeloIA, horasReativacao, promptIA, promptDelivery]);
 
   const handleLogout = () => {
@@ -296,18 +295,20 @@ export default function App() {
     e.target.value = null;
   };
 
-  // --- FINALIZAR COM WHATS (AGORA COM IA) ---
+  // FINALIZAR COM WHATS (IA + CONTEXTO)
   const finalizarComWhats = async (p) => {
     const phone = p.telefone.replace(/\D/g, "");
-    let mensagem = "Seu projeto está pronto."; // Padrão caso falhe a IA ou não tenha Key
+    let mensagem = "Seu projeto está pronto.";
 
-    // Se tiver chave de API, gera texto personalizado
     if (apiKey) {
       setLoadingDelivery(true);
       try {
-        const promptFinal = promptDelivery
+        const promptFinal = `${promptDelivery
           .replace(/{cliente}/g, p.cliente || "Cliente")
-          .replace(/{servico}/g, p.servico || "projeto");
+          .replace(/{servico}/g, p.servico || "projeto")}
+                  
+                  --- CONTEXTO DO PROJETO (ROTEIRO/LETRA) ---
+                  ${p.roteiro || "Sem roteiro definido."}`;
 
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
@@ -324,13 +325,12 @@ export default function App() {
         const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
         if (txt) mensagem = txt;
       } catch (e) {
-        console.error("Erro ao gerar msg de entrega:", e);
+        console.error("Erro IA Delivery:", e);
       } finally {
         setLoadingDelivery(false);
       }
     }
 
-    // Abre o WhatsApp com a mensagem (gerada ou padrão)
     window.open(
       `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(
         mensagem
@@ -765,7 +765,7 @@ export default function App() {
                   {mapearStatus(pedidoAtivo.status)}
                 </span>
               </div>
-              {/* Passando o loadingDelivery para o Details */}
+
               <Details
                 ativo={pedidoAtivo}
                 atualizarPedido={atualizarPedido}
@@ -773,12 +773,15 @@ export default function App() {
                 finalizarComWhats={finalizarComWhats}
                 gerarRoteiroIA={gerarRoteiroIA}
                 loadingIA={loadingIA}
-                loadingDelivery={loadingDelivery} // NOVO!
+                loadingDelivery={loadingDelivery}
                 handleAudioUpload={handleAudioUpload}
-                handleDrop={handleProofDrop}
+                // --- CORREÇÃO AQUI ---
+                handleDrop={handleProofDrop} // Antes estava "handleDrop={handleDrop}" que era o erro
+                // ---------------------
                 servicos={servicos}
                 currentUser={currentUser}
               />
+
               {pedidoAtivo.status === "finalizados" && (
                 <div
                   style={{

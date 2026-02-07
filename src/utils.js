@@ -21,16 +21,31 @@ export const formatarDuracaoHoras = (ms) => {
   return `${minutos}m`;
 };
 
+// Usado para exibir valores no StatsPanel (apenas display)
 export const formatarMoeda = (v) => {
   if (!v) return "R$ 0,00";
+  // Se já vier formatado, retorna
+  if (typeof v === "string" && v.includes("R$")) return v;
+
   const n = String(v).replace(/\D/g, "");
   return "R$ " + (Number(n) / 100).toFixed(2).replace(".", ",");
 };
 
+// Usado para a digitação no input (máscara dinâmica)
+export const maskCurrency = (value) => {
+  let v = value.replace(/\D/g, ""); // Remove tudo que não é dígito
+  v = (Number(v) / 100).toFixed(2) + ""; // Divide por 100 para ter centavos
+  v = v.replace(".", ","); // Troca ponto por vírgula
+  v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1."); // Adiciona pontos de milhar
+  return "R$ " + v;
+};
+
+// Usado para converter datas antigas (strings) em números para os gráficos
 export const parseDataSegura = (valor) => {
   if (!valor) return 0;
   if (typeof valor === "number") return valor;
   try {
+    // Tenta converter formato "DD/MM/AAAA, HH:mm:ss"
     const [data, hora] = valor.split(", ");
     if (data && hora) {
       const [dia, mes, ano] = data.split("/");

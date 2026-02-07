@@ -1,6 +1,9 @@
 import React, { useRef } from "react";
-import { formatarMoeda, normalizar } from "./utils";
+import { updateDoc, doc } from "firebase/firestore";
+import { db } from "./firebase";
+import { maskCurrency } from "./utils";
 
+// Recebendo loadingDelivery
 export default function Details({
   ativo,
   atualizarPedido,
@@ -12,9 +15,25 @@ export default function Details({
   handleAudioUpload,
   handleDrop,
   servicos,
-  currentUser,
 }) {
   const fileInputRef = useRef(null);
+
+  const isLeads = ativo.status === "leads";
+
+  const deletarAudio = async (urlParaRemover) => {
+    if (!isLeads) return alert("Exclusão permitida apenas na etapa de Leads.");
+    if (window.confirm("Excluir este áudio?")) {
+      const novaLista = ativo.audios.filter((url) => url !== urlParaRemover);
+      await updateDoc(doc(db, "pedidos", ativo.id), { audios: novaLista });
+    }
+  };
+
+  const removerComprovante = async () => {
+    if (!isLeads) return alert("Exclusão permitida apenas na etapa de Leads.");
+    if (window.confirm("Remover comprovante?")) {
+      await updateDoc(doc(db, "pedidos", ativo.id), { comprovanteUrl: null });
+    }
+  };
 
   return (
     <div
@@ -25,14 +44,14 @@ export default function Details({
         boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
       }}
     >
-      {/* 1. CABEÇALHO DO CLIENTE */}
-      <div style={{ marginBottom: "25px" }}>
+      {/* CABEÇALHO */}
+      <div style={{ marginBottom: "20px" }}>
         <label className="input-label">Nome do Cliente</label>
         <input
           className="modern-input"
           value={ativo.cliente}
           onChange={(e) => atualizarPedido(ativo.id, "cliente", e.target.value)}
-          placeholder="Ex: João Silva"
+          placeholder="Nome do Cliente"
           style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b" }}
         />
         <div
@@ -51,6 +70,7 @@ export default function Details({
               onChange={(e) =>
                 atualizarPedido(ativo.id, "telefone", e.target.value)
               }
+              placeholder="(00) 00000-0000"
             />
           </div>
           <div>
@@ -76,87 +96,132 @@ export default function Details({
         style={{
           border: "0",
           borderTop: "1px solid #f1f5f9",
-          margin: "25px 0",
+          margin: "20px 0",
         }}
       />
 
-      {/* 2. ÁREA DE NEGOCIAÇÃO (LEADS) */}
-      <div style={{ marginBottom: "25px" }}>
-        <label className="input-label">💰 Valor Negociado</label>
-        <input
-          className="modern-input"
-          value={ativo.valorRaw || ""}
-          onChange={(e) =>
-            atualizarPedido(ativo.id, "valorRaw", e.target.value)
-          }
-          placeholder="R$ 0,00"
-        />
-
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => handleDrop(e, ativo.id)}
-          style={{
-            marginTop: "15px",
-            border: "2px dashed #cbd5e1",
-            borderRadius: "12px",
-            padding: "20px",
-            textAlign: "center",
-            background: ativo.comprovanteUrl ? "#f0fdf4" : "#f8fafc",
-            borderColor: ativo.comprovanteUrl ? "#86efac" : "#cbd5e1",
-            cursor: "pointer",
-            transition: "0.2s",
-          }}
-          onClick={() => document.getElementById("proof-upload").click()}
-        >
+      {/* VALOR E COMPROVANTE */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "20px",
+          marginBottom: "20px",
+        }}
+      >
+        <div>
+          <label className="input-label">💰 Valor (Apenas Leads)</label>
           <input
-            type="file"
-            id="proof-upload"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const dt = new DataTransfer();
-              dt.items.add(e.target.files[0]);
-              handleDrop(
-                {
-                  preventDefault: () => {},
-                  stopPropagation: () => {},
-                  dataTransfer: dt,
-                },
-                ativo.id
-              );
+            className="modern-input"
+            value={ativo.valorRaw || ""}
+            onChange={(e) =>
+              atualizarPedido(
+                ativo.id,
+                "valorRaw",
+                maskCurrency(e.target.value)
+              )
+            }
+            placeholder="R$ 0,00"
+            disabled={!isLeads}
+            style={{
+              background: isLeads ? "white" : "#f1f5f9",
+              cursor: isLeads ? "text" : "not-allowed",
             }}
           />
+        </div>
 
-          {ativo.comprovanteUrl ? (
-            <div style={{ color: "#166534", fontWeight: "600" }}>
-              ✅ Comprovante Anexado! <br />
-              <a
-                href={ativo.comprovanteUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  fontSize: "12px",
-                  color: "#16a34a",
-                  textDecoration: "underline",
-                }}
-                onClick={(e) => e.stopPropagation()}
+        <div>
+          <label className="input-label">Comprovante (PDF/Img)</label>
+          <div
+            onDragOver={(e) => isLeads && e.preventDefault()}
+            onDrop={(e) => isLeads && handleDrop(e, ativo.id)}
+            onClick={() =>
+              isLeads && document.getElementById("proof-upload").click()
+            }
+            style={{
+              border: isLeads ? "2px dashed #cbd5e1" : "1px solid #e2e8f0",
+              borderRadius: "8px",
+              height: "45px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: isLeads ? "pointer" : "default",
+              background: ativo.comprovanteUrl
+                ? "#f0fdf4"
+                : isLeads
+                ? "white"
+                : "#f8fafc",
+              fontSize: "13px",
+              color: "#64748b",
+              position: "relative",
+            }}
+          >
+            <input
+              type="file"
+              id="proof-upload"
+              style={{ display: "none" }}
+              accept="image/*,.pdf"
+              onChange={(e) => {
+                const dt = new DataTransfer();
+                dt.items.add(e.target.files[0]);
+                handleDrop(
+                  {
+                    preventDefault: () => {},
+                    stopPropagation: () => {},
+                    dataTransfer: dt,
+                  },
+                  ativo.id
+                );
+              }}
+              disabled={!isLeads}
+            />
+
+            {ativo.comprovanteUrl ? (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
-                Ver arquivo
-              </a>
-            </div>
-          ) : (
-            <div style={{ color: "#64748b" }}>
-              📄 <strong>Arraste o Comprovante aqui</strong>
-              <br />
-              <span style={{ fontSize: "12px" }}>
-                ou clique para selecionar
+                <a
+                  href={ativo.comprovanteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    color: "#166534",
+                    fontWeight: "600",
+                    textDecoration: "none",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ✅ Ver Arquivo
+                </a>
+                {isLeads && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removerComprovante();
+                    }}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      color: "#ef4444",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ) : (
+              <span>
+                {isLeads ? "📄 Arraste PDF ou Imagem" : "🚫 Nenhum comprovante"}
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 3. ÁREA DE CRIAÇÃO (ROTEIRO) */}
-      <div style={{ marginBottom: "25px" }}>
+      {/* ROTEIRO (MUDANÇA DE NOME) */}
+      <div style={{ marginBottom: "20px" }}>
         <div
           style={{
             display: "flex",
@@ -165,144 +230,182 @@ export default function Details({
             marginBottom: "8px",
           }}
         >
+          {/* Alterado conforme pedido */}
           <label className="input-label" style={{ margin: 0 }}>
-            📝 Roteiro / Briefing
+            🎵 Roteiro / Letra
           </label>
-          <button
-            onClick={() => gerarRoteiroIA(ativo)}
-            disabled={loadingIA}
-            style={{
-              background: loadingIA ? "#e2e8f0" : "#eff6ff",
-              color: loadingIA ? "#94a3b8" : "#2563eb",
-              border: "none",
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontWeight: "600",
-              cursor: loadingIA ? "not-allowed" : "pointer",
-            }}
-          >
-            {loadingIA ? "✨ Criando..." : "✨ Criar com IA"}
-          </button>
+          {isLeads && (
+            <button
+              onClick={() => gerarRoteiroIA(ativo)}
+              disabled={loadingIA}
+              style={{
+                background: "none",
+                color: "#2563eb",
+                border: "none",
+                fontSize: "11px",
+                fontWeight: "600",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              {loadingIA ? "Gerando..." : "Usar IA"}
+            </button>
+          )}
         </div>
         <textarea
           className="modern-input"
-          rows={6}
+          rows={5}
           value={ativo.roteiro || ""}
           onChange={(e) => atualizarPedido(ativo.id, "roteiro", e.target.value)}
-          placeholder="Escreva o roteiro aqui..."
-          style={{ lineHeight: "1.5" }}
+          placeholder="Cole o roteiro ou letra aqui..."
+          disabled={!isLeads}
+          style={{ background: isLeads ? "white" : "#f1f5f9" }}
         />
-        <div style={{ marginTop: "10px" }}>
-          <label className="input-label">Observações Internas</label>
-          <input
-            className="modern-input"
-            value={ativo.obs}
-            onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
-            placeholder="Detalhes técnicos, tom de voz..."
-          />
-        </div>
+        <input
+          className="modern-input"
+          style={{
+            marginTop: "10px",
+            background: isLeads ? "white" : "#f1f5f9",
+          }}
+          value={ativo.obs || ""}
+          onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
+          placeholder="Observações internas"
+          disabled={!isLeads}
+        />
       </div>
 
-      {/* 4. ÁREA DE PRODUÇÃO (ÁUDIOS) */}
-      {(ativo.status === "producao" || ativo.status === "finalizados") && (
+      {/* ÁUDIOS */}
+      <div style={{ marginBottom: "25px" }}>
         <div
           style={{
-            background: "#f1f5f9",
-            padding: "20px",
-            borderRadius: "12px",
-            marginTop: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "10px",
           }}
         >
-          <h4 style={{ margin: "0 0 15px 0", color: "#334155" }}>
-            🎙️ Arquivos da Produção
-          </h4>
+          <label className="input-label" style={{ margin: 0 }}>
+            🎙️ Arquivos do Projeto
+          </label>
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "10px",
-              marginBottom: "15px",
-            }}
-          >
-            {ativo.audios &&
-              ativo.audios.map((url, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: "white",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid #e2e8f0",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ fontSize: "20px" }}>🎵</span>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#1e293b",
-                    }}
-                  >
-                    Áudio {i + 1}
-                  </div>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      color: "#3b82f6",
-                      textDecoration: "none",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Baixar
-                  </a>
-                </div>
-              ))}
-            {(!ativo.audios || ativo.audios.length === 0) && (
-              <span style={{ fontSize: "13px", color: "#94a3b8" }}>
-                Nenhum áudio anexado.
-              </span>
-            )}
-          </div>
-
+          {isLeads && (
+            <button
+              onClick={() => fileInputRef.current.click()}
+              style={{
+                background: "#eff6ff",
+                color: "#3b82f6",
+                border: "1px solid #bfdbfe",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "11px",
+                fontWeight: "600",
+              }}
+            >
+              + Anexar Áudio
+            </button>
+          )}
           <input
             type="file"
             ref={fileInputRef}
             style={{ display: "none" }}
             onChange={(e) => handleAudioUpload(e, ativo.id)}
-            accept="audio/*,video/*,.pdf"
+            accept="audio/*,video/*"
           />
-          <button
-            onClick={() => fileInputRef.current.click()}
-            style={{
-              background: "#3b82f6",
-              color: "white",
-              border: "none",
-              padding: "8px 15px",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: "600",
-            }}
-          >
-            ← Adicionar arquivo
-          </button>
         </div>
-      )}
 
-      {/* 5. AÇÕES FINAIS (BOTÕES) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {ativo.audios &&
+            ativo.audios.map((url, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "#f8fafc",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "5px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#334155",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Arquivo {i + 1}
+                  </span>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <a
+                      href={url}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: "#3b82f6",
+                        textDecoration: "none",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      ⬇ Baixar
+                    </a>
+                    {isLeads && (
+                      <span
+                        onClick={() => deletarAudio(url)}
+                        style={{
+                          color: "#ef4444",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Excluir
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <audio
+                  controls
+                  src={url}
+                  style={{ width: "100%", height: "30px" }}
+                />
+              </div>
+            ))}
+          {(!ativo.audios || ativo.audios.length === 0) && (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#cbd5e1",
+                fontStyle: "italic",
+                padding: "10px",
+                textAlign: "center",
+                border: "1px dashed #e2e8f0",
+                borderRadius: "6px",
+              }}
+            >
+              Nenhum áudio disponível.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* BOTÕES DE AÇÃO */}
       <div
         style={{
-          marginTop: "30px",
           display: "flex",
           gap: "10px",
           justifyContent: "flex-end",
+          borderTop: "1px solid #f1f5f9",
+          paddingTop: "20px",
         }}
       >
         {ativo.status === "leads" && (
@@ -311,29 +414,29 @@ export default function Details({
             className="btn-primary"
             style={{ background: "#0ea5e9" }}
           >
-            Enviar para Produção ➡️
+            Mover para Produção →
           </button>
         )}
 
         {ativo.status === "producao" && (
-          <div style={{ display: "flex", gap: "10px" }}>
+          <>
             <button
               onClick={() => moverPara(ativo.id, "leads")}
               style={{
-                background: "#64748b",
-                color: "white",
-                border: "none",
+                background: "white",
+                color: "#64748b",
+                border: "1px solid #cbd5e1",
                 padding: "10px 20px",
                 borderRadius: "8px",
                 cursor: "pointer",
                 fontWeight: "600",
               }}
             >
-              ⬅️ Voltar
+              ← Voltar
             </button>
             <button
               onClick={() => finalizarComWhats(ativo)}
-              disabled={loadingDelivery}
+              disabled={loadingDelivery} // Desabilita se estiver gerando texto
               className="btn-primary"
               style={{
                 background: "#22c55e",
@@ -342,13 +445,9 @@ export default function Details({
                 gap: "8px",
               }}
             >
-              {loadingDelivery ? (
-                <>✨ Gerando texto...</>
-              ) : (
-                <>✅ Finalizar com Whats</>
-              )}
+              {loadingDelivery ? "✨ Gerando texto..." : "Finalizar com Whats"}
             </button>
-          </div>
+          </>
         )}
 
         {ativo.status === "finalizados" && (
@@ -364,7 +463,7 @@ export default function Details({
               fontWeight: "600",
             }}
           >
-            ⚠️ Cliente pediu alteração (Voltar)
+            Devolver para Produção
           </button>
         )}
       </div>
