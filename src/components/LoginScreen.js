@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase"; // Importante: volta uma pasta (../)
+import { db } from "../firebase";
 
 const LoginScreen = ({ onLogin }) => {
   const [user, setUser] = useState("");
@@ -12,36 +12,31 @@ const LoginScreen = ({ onLogin }) => {
     setLoading(true);
     setError("");
 
-    // Admin de emergência
-    if (user === "admin" && pass === "1234") {
-      const u = {
-        nome: "Admin Provisorio",
-        login: "admin",
-        role: "admin",
-        acessoStats: true,
-      };
-      localStorage.setItem("vislumbre_user", JSON.stringify(u));
-      onLogin(u);
-      return;
-    }
+    // --- REMOVIDO O ADMIN PROVISÓRIO (admin/1234) ---
+    // Agora o acesso é exclusivo pelo banco de dados.
 
     try {
-      const q = query(
-        collection(db, "usuarios"),
-        where("login", "==", user),
-        where("senha", "==", pass)
-      );
+      // Busca no Firebase
+      const q = query(collection(db, "usuarios"), where("login", "==", user));
       const qs = await getDocs(q);
 
       if (!qs.empty) {
-        const u = { ...qs.docs[0].data(), id: qs.docs[0].id };
-        localStorage.setItem("vislumbre_user", JSON.stringify(u));
-        onLogin(u);
+        const userData = qs.docs[0].data();
+
+        // Verifica a senha (Simples comparação direta)
+        if (userData.senha === pass) {
+          const u = { ...userData, id: qs.docs[0].id };
+          localStorage.setItem("vislumbre_user", JSON.stringify(u));
+          onLogin(u);
+        } else {
+          setError("Senha incorreta.");
+        }
       } else {
-        setError("Dados incorretos.");
+        setError("Usuário não encontrado.");
       }
     } catch (e) {
-      setError("Erro de conexão.");
+      console.error(e);
+      setError("Erro de conexão com o servidor.");
     } finally {
       setLoading(false);
     }
