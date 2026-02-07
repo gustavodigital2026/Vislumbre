@@ -9,40 +9,464 @@ import {
   orderBy,
   deleteDoc,
   getDocs,
+  where,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "./firebase";
-import "./styles.css";
-
-// IMPORTANDO OS COMPONENTES NOVOS
-import { normalizar, mapearStatus, parseDataSegura } from "./utils";
-import LoginScreen from "./components/LoginScreen";
-import StatsPanel from "./components/StatsPanel";
 import {
-  AdminTeamPanel,
-  AdminServicesPanel,
-  AdminGeneralPanel,
-} from "./components/AdminPanels";
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+import { db, storage } from "./firebase";
 import Sidebar from "./Sidebar";
 import Details from "./Details";
+import StatsPanel from "./components/StatsPanel"; // <--- IMPORTADO
+import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
+import "./styles.css";
 
+// --- LOGIN ---
+const LoginScreen = ({ onLogin }) => {
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const handleLogin = async () => {
+    setLoading(true);
+    setError("");
+    if (user === "admin" && pass === "1234") {
+      const u = {
+        nome: "Admin Provisorio",
+        login: "admin",
+        role: "admin",
+        acessoStats: true,
+      };
+      localStorage.setItem("vislumbre_user", JSON.stringify(u));
+      onLogin(u);
+      return;
+    }
+    try {
+      const q = query(
+        collection(db, "usuarios"),
+        where("login", "==", user),
+        where("senha", "==", pass)
+      );
+      const qs = await getDocs(q);
+      if (!qs.empty) {
+        const u = { ...qs.docs[0].data(), id: qs.docs[0].id };
+        localStorage.setItem("vislumbre_user", JSON.stringify(u));
+        onLogin(u);
+      } else {
+        setError("Dados incorretos.");
+      }
+    } catch (e) {
+      setError("Erro de conexão.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleLogin();
+  };
+  return (
+    <div
+      style={{
+        height: "100vh",
+        background: "#f1f5f9",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {" "}
+      <div
+        style={{
+          background: "white",
+          padding: "40px",
+          borderRadius: "24px",
+          width: "340px",
+          textAlign: "center",
+          boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
+        }}
+      >
+        {" "}
+        <div
+          style={{
+            background: "white",
+            padding: "15px",
+            borderRadius: "16px",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)",
+            display: "inline-block",
+            marginBottom: "15px",
+          }}
+        >
+          {" "}
+          <img
+            src="/logo.jpeg"
+            alt="Vislumbre Logo"
+            style={{
+              maxWidth: "210px",
+              maxHeight: "210px",
+              borderRadius: "8px",
+              display: "block",
+            }}
+          />{" "}
+        </div>{" "}
+        <h2
+          style={{
+            color: "#1e293b",
+            margin: "0 0 25px 0",
+            fontSize: "22px",
+            fontWeight: "700",
+          }}
+        >
+          Vislumbre CRM
+        </h2>{" "}
+        <div className="input-group">
+          <input
+            className="modern-input"
+            placeholder="Usuário"
+            value={user}
+            onKeyDown={handleKeyDown}
+            onChange={(e) => setUser(e.target.value)}
+            style={{ padding: "14px" }}
+          />
+        </div>{" "}
+        <div className="input-group" style={{ marginBottom: "25px" }}>
+          <input
+            className="modern-input"
+            type="password"
+            placeholder="Senha"
+            value={pass}
+            onKeyDown={handleKeyDown}
+            onChange={(e) => setPass(e.target.value)}
+            style={{ padding: "14px" }}
+          />
+        </div>{" "}
+        {error && (
+          <p
+            style={{
+              color: "#ef4444",
+              fontSize: "13px",
+              marginBottom: "15px",
+              background: "#fef2f2",
+              padding: "8px",
+              borderRadius: "6px",
+            }}
+          >
+            {error}
+          </p>
+        )}{" "}
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="btn-primary"
+          style={{ padding: "14px", fontSize: "16px" }}
+        >
+          {loading ? "Verificando..." : "Entrar no Sistema"}
+        </button>{" "}
+      </div>{" "}
+    </div>
+  );
+};
+
+// --- GESTÃO DE EQUIPE ---
+const AdminTeamPanel = ({ voltar }) => {
+  const [usuarios, setUsuarios] = useState([]);
+  const [novoNome, setNovoNome] = useState("");
+  const [novoLogin, setNovoLogin] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  useEffect(() => {
+    const unsub = onSnapshot(query(collection(db, "usuarios")), (snap) => {
+      setUsuarios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+  const adicionarUsuario = async () => {
+    if (!novoNome || !novoLogin || !novaSenha) return alert("Preencha tudo!");
+    await addDoc(collection(db, "usuarios"), {
+      nome: novoNome,
+      login: novoLogin,
+      senha: novaSenha,
+      role: "operador",
+      acessoStats: false,
+    });
+    setNovoNome("");
+    setNovoLogin("");
+    setNovaSenha("");
+  };
+  const removerUsuario = async (id) => {
+    if (window.confirm("Remover usuário?"))
+      await deleteDoc(doc(db, "usuarios", id));
+  };
+  const alterarSenha = async (u) => {
+    const nova = prompt(`Nova senha para ${u.nome}:`, u.senha);
+    if (nova && nova !== u.senha)
+      await updateDoc(doc(db, "usuarios", u.id), { senha: nova });
+  };
+  const toggleStats = async (id, statusAtual) => {
+    await updateDoc(doc(db, "usuarios", id), { acessoStats: !statusAtual });
+  };
+  return (
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">👥 Gestão de Equipe</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
+        </div>
+        <div className="grid-cards">
+          {usuarios.map((u) => (
+            <div key={u.id} className="item-card">
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <div
+                  className="user-avatar"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    background: "#3b82f6",
+                    color: "white",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                    marginRight: "15px",
+                  }}
+                >
+                  {u.nome.charAt(0).toUpperCase()}
+                </div>
+                <div className="item-info">
+                  <h4 className="item-title">{u.nome}</h4>
+                  <p className="item-subtitle">Login: {u.login}</p>
+                  <p
+                    className="item-subtitle"
+                    style={{
+                      color: "#2563eb",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                    onClick={() => alterarSenha(u)}
+                  >
+                    🔑 {u.senha} ✎
+                  </p>
+                  <label
+                    style={{
+                      fontSize: "11px",
+                      marginTop: "5px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      cursor: "pointer",
+                      color: u.acessoStats ? "#3b82f6" : "#94a3b8",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={u.acessoStats || false}
+                      onChange={() => toggleStats(u.id, u.acessoStats)}
+                    />{" "}
+                    Acesso a Stats
+                  </label>
+                </div>
+              </div>
+              <button
+                onClick={() => removerUsuario(u.id)}
+                className="btn-icon-delete"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div
+          className="card-panel"
+          style={{ maxWidth: "500px", margin: "0 auto" }}
+        >
+          <div className="card-header">✨ Adicionar Novo Membro</div>
+          <div className="input-group">
+            <label className="input-label">Nome Completo</label>
+            <input
+              className="modern-input"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Login de Acesso</label>
+            <input
+              className="modern-input"
+              value={novoLogin}
+              onChange={(e) => setNovoLogin(e.target.value)}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Senha</label>
+            <input
+              className="modern-input"
+              type="password"
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
+            />
+          </div>
+          <button onClick={adicionarUsuario} className="btn-primary">
+            Cadastrar Usuário
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- GESTÃO DE SERVIÇOS ---
+const AdminServicesPanel = ({ servicos, voltar }) => {
+  const [nome, setNome] = useState("");
+  const [cor, setCor] = useState("#3b82f6");
+  const adicionar = async () => {
+    if (!nome) return alert("Digite o nome");
+    await addDoc(collection(db, "servicos"), { nome, cor });
+    setNome("");
+  };
+  const remover = async (id) => {
+    if (window.confirm("Remover serviço?"))
+      await deleteDoc(doc(db, "servicos", id));
+  };
+  return (
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">🛠️ Catálogo de Serviços</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
+        </div>
+        <div className="grid-cards">
+          {servicos.map((s) => (
+            <div
+              key={s.id}
+              className="item-card"
+              style={{ borderLeft: `5px solid ${s.cor}` }}
+            >
+              <div className="item-info">
+                <h4 className="item-title">{s.nome}</h4>
+                <p
+                  className="item-subtitle"
+                  style={{ display: "flex", alignItems: "center", gap: "5px" }}
+                >
+                  <span
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      background: s.cor,
+                    }}
+                  ></span>
+                  {s.cor}
+                </p>
+              </div>
+              <button onClick={() => remover(s.id)} className="btn-icon-delete">
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div
+          className="card-panel"
+          style={{ maxWidth: "500px", margin: "0 auto" }}
+        >
+          <div className="card-header">➕ Novo Serviço</div>
+          <div className="input-group">
+            <label className="input-label">Nome do Serviço</label>
+            <input
+              className="modern-input"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">Cor de Identificação</label>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <input
+                type="color"
+                value={cor}
+                onChange={(e) => setCor(e.target.value)}
+                style={{
+                  height: "40px",
+                  width: "60px",
+                  border: "none",
+                  background: "none",
+                }}
+              />
+            </div>
+          </div>
+          <button onClick={adicionar} className="btn-primary">
+            Salvar Serviço
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- DEFINIÇÕES GERAIS ---
+const AdminGeneralPanel = ({ apiKey, setApiKey, horas, setHoras, voltar }) => {
+  return (
+    <div className="admin-container">
+      <div className="admin-wrapper">
+        <div className="admin-header">
+          <h2 className="admin-title">⚙️ Definições do Sistema</h2>
+          <button onClick={voltar} className="btn-back">
+            Voltar
+          </button>
+        </div>
+        <div className="card-panel">
+          <div className="card-header">🤖 Inteligência Artificial (Gemini)</div>
+          <div className="input-group">
+            <label className="input-label">Google API Key</label>
+            <input
+              className="modern-input"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Cole sua chave (AIzaSy...)"
+            />
+            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+              Necessário para gerar roteiros automáticos na tela de pedidos.
+            </p>
+          </div>
+        </div>
+        <div className="card-panel">
+          <div className="card-header">⏰ Automação de Leads</div>
+          <div className="input-group">
+            <label className="input-label">Tempo para Reativação (Horas)</label>
+            <input
+              className="modern-input"
+              type="number"
+              value={horas}
+              onChange={(e) => setHoras(e.target.value)}
+            />
+            <p style={{ fontSize: "12px", color: "#64748b", marginTop: "8px" }}>
+              Se um lead ficar parado por mais de <strong>{horas} horas</strong>
+              , o botão "Reativar" aparecerá.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- APP PRINCIPAL ---
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
-    const s = localStorage.getItem("vislumbre_user");
-    return s ? JSON.parse(s) : null;
+    const saved = localStorage.getItem("vislumbre_user");
+    return saved ? JSON.parse(saved) : null;
   });
   const [aba, setAba] = useState("leads");
   const [pedidos, setPedidos] = useState([]);
   const [servicos, setServicos] = useState([]);
-  const [idSelecionado, setIdSelecionado] = useState(null);
 
-  // Filtros Sidebar
-  const [novoTel, setNovoTel] = useState("");
-  const [termoBusca, setTermoBusca] = useState("");
-  const [filtroDataInicio, setFiltroDataInicio] = useState("");
-  const [filtroDataFim, setFiltroDataFim] = useState("");
-
-  // Configs Globais
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("vislumbre_google_key") || ""
   );
@@ -52,114 +476,146 @@ export default function App() {
   const [horasReativacao, setHorasReativacao] = useState(
     () => Number(localStorage.getItem("vislumbre_reactivation_hours")) || 24
   );
+
   const [showConfig, setShowConfig] = useState(false);
   const [loadingIA, setLoadingIA] = useState(false);
+  const [idSelecionado, setIdSelecionado] = useState(null);
+  const [novoTel, setNovoTel] = useState("");
+  const [termoBusca, setTermoBusca] = useState("");
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
 
-  // LISTENERS FIREBASE
   useEffect(() => {
-    const u = onSnapshot(
+    const unsub = onSnapshot(
       query(collection(db, "pedidos"), orderBy("tsEntrada", "desc")),
-      (s) =>
+      (snap) =>
         setPedidos(
-          s.docs.map((d) => ({
+          snap.docs.map((d) => ({
             id: d.id,
             ...d.data(),
             historicoAcoes: d.data().historicoAcoes || [],
           }))
         )
     );
-    return () => u();
+    return () => unsub();
   }, []);
   useEffect(() => {
-    const u = onSnapshot(collection(db, "servicos"), (s) =>
-      setServicos(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    return () => u();
+    const unsub = onSnapshot(collection(db, "servicos"), (snap) => {
+      const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (lista.length === 0) {
+        addDoc(collection(db, "servicos"), { nome: "Jingle", cor: "#f59e0b" });
+        addDoc(collection(db, "servicos"), { nome: "Vídeo", cor: "#3b82f6" });
+      } else setServicos(lista);
+    });
+    return () => unsub();
   }, []);
+
   useEffect(() => {
     localStorage.setItem("vislumbre_google_key", apiKey);
+  }, [apiKey]);
+  useEffect(() => {
     localStorage.setItem("vislumbre_model", modeloIA);
+  }, [modeloIA]);
+  useEffect(() => {
     localStorage.setItem("vislumbre_reactivation_hours", horasReativacao);
-  }, [apiKey, modeloIA, horasReativacao]);
+  }, [horasReativacao]);
 
   const handleLogout = () => {
     localStorage.removeItem("vislumbre_user");
     setCurrentUser(null);
   };
 
-  // LÓGICA DE FILTRO
-  const listaFiltrada = pedidos.filter((p) => {
-    const statusP = normalizar(p.status);
-    const abaNorm = normalizar(aba);
-    const statusMatch =
-      abaNorm === "leads"
-        ? statusP === "leads" || statusP === "pendentes"
-        : statusP === abaNorm;
-    const matchTexto =
-      !termoBusca ||
-      (p.cliente && normalizar(p.cliente).includes(normalizar(termoBusca))) ||
-      (p.telefone && p.telefone.includes(termoBusca));
-    const pData = p.tsEntrada || 0;
-    const fStart = filtroDataInicio
-      ? new Date(filtroDataInicio + "T00:00:00").getTime()
-      : 0;
-    const fEnd = filtroDataFim
-      ? new Date(filtroDataFim + "T23:59:59.999").getTime()
-      : Infinity;
-    return statusMatch && matchTexto && pData >= fStart && pData <= fEnd;
-  });
-
-  const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
-
-  // AÇÕES
-  const getNovoHistorico = (p, d) => [
+  // FUNÇÃO AUXILIAR DO HISTÓRICO
+  const getNovoHistorico = (pedido, desc) => [
     {
       user: currentUser?.nome || "Sistema",
-      desc: d,
+      desc,
       data: new Date().toLocaleString(),
       timestamp: Date.now(),
     },
-    ...(p.historicoAcoes || []),
+    ...(pedido.historicoAcoes || []),
   ];
+
+  const getResponsavel = (historico, palavraChave) => {
+    const acao = historico?.find((h) =>
+      h.desc.toUpperCase().includes(palavraChave.toUpperCase())
+    );
+    return acao ? acao.user : "Sistema";
+  };
+  const calcularDuracao = (inicio, fim) => {
+    if (!inicio || !fim) return "-";
+    return formatarDuracaoHoras(fim - inicio);
+  };
 
   const adicionarLead = async () => {
     if (!novoTel) return;
-    await addDoc(collection(db, "pedidos"), {
-      telefone: novoTel,
-      status: "leads",
-      tsEntrada: Date.now(),
-      dataEntrada: new Date().toLocaleString(),
-      historicoAcoes: [
-        {
-          user: currentUser.nome,
-          desc: "Criou Lead",
-          data: new Date().toLocaleString(),
-        },
-      ],
-    });
-    setNovoTel("");
+    try {
+      await addDoc(collection(db, "pedidos"), {
+        cliente: "",
+        telefone: novoTel,
+        status: "leads",
+        obs: "",
+        servico: servicos[0]?.nome || "Outros",
+        valorRaw: "",
+        comprovanteUrl: null,
+        audios: [],
+        roteiro: "",
+        tsEntrada: Date.now(),
+        dataEntrada: new Date().toLocaleString(),
+        historicoAcoes: [
+          {
+            user: currentUser.nome,
+            desc: "Criou o Lead",
+            data: new Date().toLocaleString(),
+            timestamp: Date.now(),
+          },
+        ],
+      });
+      setNovoTel("");
+    } catch (e) {
+      alert("Erro: " + e.message);
+    }
   };
-  const atualizarPedido = async (id, f, v) =>
-    await updateDoc(doc(db, "pedidos", id), { [f]: v });
+  const atualizarPedido = async (id, campo, valor) =>
+    await updateDoc(doc(db, "pedidos", id), { [campo]: valor });
 
-  const moverPara = async (id, s) => {
-    const p = pedidos.find((x) => x.id === id);
-    if (s === "producao" && !p.roteiro) return alert("Roteiro obrigatório!");
+  const moverPara = async (id, novoStatus) => {
+    const pedido = pedidos.find((p) => p.id === id);
+    if (novoStatus === "producao" && !pedido.roteiro)
+      return alert("Roteiro obrigatório!");
     const now = Date.now();
-    await updateDoc(doc(db, "pedidos", id), {
-      status: s,
-      tsProducao: s === "producao" ? now : p.tsProducao || null,
-      tsSaida: s === "finalizados" ? now : p.tsSaida || null,
-      historicoAcoes: [
-        {
-          user: currentUser.nome,
-          desc: `Moveu para ${mapearStatus(s).toUpperCase()}`,
-          timestamp: now,
-          data: new Date().toLocaleString(),
-        },
-        ...p.historicoAcoes,
-      ],
-    });
+
+    let updates = {
+      status: novoStatus,
+      tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
+      tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
+      historicoAcoes: getNovoHistorico(
+        pedido,
+        `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`
+      ),
+    };
+
+    if (novoStatus === "producao") {
+      updates.dataProducao = new Date().toLocaleString();
+      updates.tsVenda = now;
+    }
+    if (novoStatus === "finalizados") {
+      updates.dataSaida = new Date().toLocaleString();
+      if (pedido.audios && pedido.audios.length > 0) {
+        await Promise.all(
+          pedido.audios.map(async (url) => {
+            try {
+              const fileRef = ref(storage, url);
+              await deleteObject(fileRef);
+            } catch (e) {
+              console.error("Erro deletar:", e);
+            }
+          })
+        );
+        updates.audios = [];
+      }
+    }
+    await updateDoc(doc(db, "pedidos", id), updates);
     setIdSelecionado(null);
   };
 
@@ -175,7 +631,11 @@ export default function App() {
         );
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
-        await updateDoc(doc(db, "pedidos", id), { comprovanteUrl: url });
+        const pedido = pedidos.find((p) => p.id === id);
+        await updateDoc(doc(db, "pedidos", id), {
+          comprovanteUrl: url,
+          historicoAcoes: getNovoHistorico(pedido, "Enviou Comprovante"),
+        });
       } catch (err) {
         alert("Erro: " + err.message);
       }
@@ -184,43 +644,43 @@ export default function App() {
   const handleAudioUpload = async (e, id) => {
     const file = e.target.files[0];
     if (file) {
+      const btn = e.target.nextSibling;
+      if (btn) btn.innerText = "⏳ Enviando...";
       try {
         const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
-        const p = pedidos.find((x) => x.id === id);
+        const pedido = pedidos.find((p) => p.id === id);
         await updateDoc(doc(db, "pedidos", id), {
-          audios: [...(p.audios || []), url],
-          historicoAcoes: getNovoHistorico(p, "Anexou Áudio"),
+          audios: [...(pedido.audios || []), url],
+          historicoAcoes: getNovoHistorico(pedido, "Anexou Áudio (Nuvem)"),
         });
       } catch (err) {
-        alert("Erro: " + err.message);
+        alert("Erro no upload: " + err.message);
+      } finally {
+        if (btn) btn.innerText = "← Adicionar áudio";
       }
     }
     e.target.value = null;
   };
   const finalizarComWhats = (p) => {
+    const phone = p.telefone.replace(/\D/g, "");
     window.open(
-      `https://web.whatsapp.com/send?phone=55${p.telefone.replace(
-        /\D/g,
-        ""
-      )}&text=Pronto!`,
+      `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
       "_blank"
     );
     moverPara(p.id, "finalizados");
   };
   const reativarLead = (e, p) => {
     e.stopPropagation();
+    const phone = p.telefone.replace(/\D/g, "");
     window.open(
-      `https://web.whatsapp.com/send?phone=55${p.telefone.replace(
-        /\D/g,
-        ""
-      )}&text=Olá!`,
+      `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
       "_blank"
     );
   };
   const gerarRoteiroIA = async (p) => {
-    if (!apiKey) return alert("Configure a API Key!");
+    if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
     setLoadingIA(true);
     try {
       const res = await fetch(
@@ -233,7 +693,7 @@ export default function App() {
               {
                 parts: [
                   {
-                    text: `Crie um roteiro para ${p.servico}. Cliente: ${p.cliente}. Obs: ${p.obs}`,
+                    text: `Crie um roteiro/letra para ${p.servico}. Cliente: ${p.cliente}. Obs: ${p.obs}`,
                   },
                 ],
               },
@@ -246,7 +706,7 @@ export default function App() {
       if (txt)
         await updateDoc(doc(db, "pedidos", p.id), {
           roteiro: txt,
-          historicoAcoes: getNovoHistorico(p, "Gerou Roteiro IA"),
+          historicoAcoes: getNovoHistorico(p, "Gerou Roteiro com IA"),
         });
     } catch (e) {
       alert("Erro IA");
@@ -255,18 +715,23 @@ export default function App() {
     }
   };
   const handleResetSystem = async () => {
-    if (window.confirm("RESETAR TUDO?")) {
+    if (
+      window.confirm(
+        "🚨 PERIGO: Isso vai apagar TODOS os pedidos do sistema!\n\nTem certeza?"
+      ) &&
+      window.confirm("Última chance: Essa ação é irreversível.")
+    ) {
       const snap = await getDocs(collection(db, "pedidos"));
       await Promise.all(
         snap.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id)))
       );
-      alert("Resetado.");
+      alert("Sistema resetado.");
       window.location.reload();
     }
   };
 
-  // NAVEGAÇÃO
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+
   if (aba === "admin_team")
     return <AdminTeamPanel voltar={() => setAba("leads")} />;
   if (aba === "admin_services")
@@ -292,44 +757,122 @@ export default function App() {
       />
     );
 
-  // RENDERIZAÇÃO
+  const filterStart = filtroDataInicio
+    ? new Date(filtroDataInicio + "T00:00:00").getTime()
+    : 0;
+  const filterEnd = filtroDataFim
+    ? new Date(filtroDataFim + "T23:59:59.999").getTime()
+    : Infinity;
+
+  const listaFiltrada = pedidos.filter((p) => {
+    if (aba === "leads") {
+      if (p.status !== "leads" && p.status !== "pendentes") return false;
+    } else {
+      if (p.status !== aba) return false;
+    }
+    const matchTexto =
+      (p.cliente &&
+        p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) ||
+      (p.telefone && p.telefone.includes(termoBusca));
+    const pData = p.tsEntrada || 0;
+    return matchTexto && pData >= filterStart && pData <= filterEnd;
+  });
+
+  const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
+  const HistoricoView = ({ historico }) => (
+    <div
+      style={{
+        marginTop: "30px",
+        borderTop: "2px solid #e2e8f0",
+        paddingTop: "20px",
+      }}
+    >
+      <h4 style={{ margin: "0 0 10px 0", color: "#64748b" }}>
+        📜 Histórico de Atividades
+      </h4>
+      <div
+        style={{
+          background: "#f9f9f9",
+          padding: "10px",
+          borderRadius: "6px",
+          maxHeight: "150px",
+          overflowY: "auto",
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        {(!historico || historico.length === 0) && (
+          <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+            Nenhuma atividade registrada.
+          </span>
+        )}
+        {historico &&
+          historico.map((h, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: "12px",
+                marginBottom: "8px",
+                borderBottom: "1px dashed #e2e8f0",
+                paddingBottom: "4px",
+              }}
+            >
+              <span style={{ fontWeight: "bold", color: "#1e293b" }}>
+                {h.user}
+              </span>{" "}
+              <span style={{ color: "#64748b" }}> - {h.data}</span>
+              <div style={{ color: "#334155", marginTop: "2px" }}>{h.desc}</div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: "Segoe UI, sans-serif",
+      }}
+      onClick={() => setShowConfig(false)}
+    >
       <header
         style={{
+          padding: "15px 25px",
           background: "#1e293b",
           color: "white",
-          padding: "10px 20px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center" }}>
             <img
               src="/logo.jpeg"
+              alt="Logo"
               style={{
-                height: "35px",
+                height: "40px",
                 borderRadius: "4px",
                 marginRight: "10px",
               }}
-              alt="Logo"
             />
-            <span style={{ fontWeight: "bold", fontSize: "18px" }}>
+            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
               Vislumbre
-            </span>
+            </h2>
           </div>
           <span
             style={{
               fontSize: "11px",
               background: "#3b82f6",
               color: "white",
-              padding: "3px 10px",
+              padding: "4px 10px",
               borderRadius: "20px",
               fontWeight: "600",
               textTransform: "uppercase",
+              letterSpacing: "0.5px",
             }}
           >
             {currentUser.nome}
@@ -345,38 +888,41 @@ export default function App() {
                   background: "rgba(255,255,255,0.1)",
                   border: "none",
                   cursor: "pointer",
-                  fontSize: "14px",
+                  fontSize: "16px",
                   marginLeft: "10px",
-                  padding: "6px 10px",
-                  borderRadius: "6px",
-                  color: "white",
+                  padding: "8px",
+                  borderRadius: "8px",
+                  transition: "0.2s",
                 }}
               >
-                ⚙️
+                ⚙️ Ajustes
               </button>
               {showConfig && (
                 <div
                   style={{
                     position: "absolute",
-                    top: "40px",
+                    top: "45px",
                     left: "0",
                     background: "white",
                     color: "#333",
                     boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                     overflow: "hidden",
                     zIndex: 100,
-                    width: "180px",
+                    width: "200px",
                     border: "1px solid #e2e8f0",
                   }}
                 >
                   <div
                     onClick={() => setAba("admin_team")}
                     style={{
-                      padding: "10px 15px",
+                      padding: "12px 15px",
                       cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
-                      fontSize: "13px",
+                      fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     👥 Equipe
@@ -384,10 +930,13 @@ export default function App() {
                   <div
                     onClick={() => setAba("admin_services")}
                     style={{
-                      padding: "10px 15px",
+                      padding: "12px 15px",
                       cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
-                      fontSize: "13px",
+                      fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     🛠️ Serviços
@@ -395,10 +944,13 @@ export default function App() {
                   <div
                     onClick={() => setAba("stats")}
                     style={{
-                      padding: "10px 15px",
+                      padding: "12px 15px",
                       cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
-                      fontSize: "13px",
+                      fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     📊 Estatísticas
@@ -406,12 +958,15 @@ export default function App() {
                   <div
                     onClick={() => setAba("admin_general")}
                     style={{
-                      padding: "10px 15px",
+                      padding: "12px 15px",
                       cursor: "pointer",
                       borderBottom: "1px solid #f1f5f9",
-                      fontSize: "13px",
+                      fontSize: "14px",
                       fontWeight: "600",
                       color: "#3b82f6",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
                     }}
                   >
                     ⚙️ Definições Gerais
@@ -419,7 +974,7 @@ export default function App() {
                   <div
                     onClick={handleResetSystem}
                     style={{
-                      padding: "10px 15px",
+                      padding: "12px 15px",
                       cursor: "pointer",
                       color: "#ef4444",
                       fontSize: "13px",
@@ -440,19 +995,21 @@ export default function App() {
                 background: "#8b5cf6",
                 border: "none",
                 color: "white",
-                padding: "5px 10px",
-                borderRadius: "4px",
                 cursor: "pointer",
                 marginLeft: "10px",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "13px",
+                fontWeight: "600",
               }}
             >
-              📊
+              📊 Stats
             </button>
           )}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           {[
-            { id: "leads", l: "Leads" },
+            { id: "leads", l: "Leads & Criação" },
             { id: "producao", l: "Produção" },
             { id: "finalizados", l: "Entregues" },
           ].map((m) => (
@@ -463,14 +1020,15 @@ export default function App() {
                 setIdSelecionado(null);
               }}
               style={{
-                background: aba === m.id ? "#f59e0b" : "rgba(255,255,255,0.1)",
+                background: aba === m.id ? "#fbbf24" : "rgba(255,255,255,0.1)",
                 color: aba === m.id ? "#1e293b" : "#94a3b8",
                 border: "none",
-                padding: "8px 15px",
+                padding: "8px 16px",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontWeight: "600",
                 fontSize: "13px",
+                transition: "0.2s",
               }}
             >
               {m.l}
@@ -482,9 +1040,9 @@ export default function App() {
               background: "#ef4444",
               border: "none",
               color: "white",
-              padding: "8px 15px",
               borderRadius: "6px",
               cursor: "pointer",
+              padding: "8px 16px",
               fontWeight: "600",
               fontSize: "13px",
             }}
@@ -493,10 +1051,8 @@ export default function App() {
           </button>
         </div>
       </header>
-      <div
-        style={{ flex: 1, display: "flex", overflow: "hidden" }}
-        onClick={() => setShowConfig(false)}
-      >
+
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Sidebar
           aba={aba}
           lista={listaFiltrada}
@@ -517,33 +1073,161 @@ export default function App() {
         <div
           style={{
             flex: 1,
-            background: "#f8fafc",
             padding: "20px",
             overflowY: "auto",
+            background: "#f8fafc",
           }}
         >
           {pedidoAtivo ? (
-            <Details
-              ativo={pedidoAtivo}
-              atualizarPedido={atualizarPedido}
-              moverPara={moverPara}
-              finalizarComWhats={finalizarComWhats}
-              gerarRoteiroIA={gerarRoteiroIA}
-              loadingIA={loadingIA}
-              handleAudioUpload={handleAudioUpload}
-              handleDrop={handleProofDrop}
-              servicos={servicos}
-              currentUser={currentUser}
-            />
+            <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+              <div style={{ marginBottom: "20px", textAlign: "right" }}>
+                <span
+                  style={{
+                    background: "#cbd5e1",
+                    color: "#334155",
+                    padding: "6px 12px",
+                    borderRadius: "20px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {mapearStatus(pedidoAtivo.status)}
+                </span>
+              </div>
+
+              <Details
+                ativo={pedidoAtivo}
+                atualizarPedido={atualizarPedido}
+                moverPara={moverPara}
+                finalizarComWhats={finalizarComWhats}
+                gerarRoteiroIA={gerarRoteiroIA}
+                loadingIA={loadingIA}
+                handleAudioUpload={handleAudioUpload}
+                handleDrop={handleProofDrop}
+                servicos={servicos}
+                currentUser={currentUser}
+              />
+
+              {pedidoAtivo.status === "finalizados" && (
+                <div
+                  style={{
+                    marginTop: "30px",
+                    padding: "20px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "12px",
+                    background: "white",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: "0 0 15px 0",
+                      color: "#1e293b",
+                      fontSize: "16px",
+                    }}
+                  >
+                    ⏱️ Performance deste Pedido
+                  </h3>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "20px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "15px",
+                        background: "#fff7ed",
+                        borderRadius: "8px",
+                        border: "1px solid #ffedd5",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#9a3412",
+                          fontWeight: "bold",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Fase de Negociação
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          color: "#c2410c",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {calcularDuracao(
+                          pedidoAtivo.tsEntrada,
+                          pedidoAtivo.tsProducao
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#9a3412" }}>
+                        Resp:{" "}
+                        {getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO")}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        padding: "15px",
+                        background: "#f5f3ff",
+                        borderRadius: "8px",
+                        border: "1px solid #ede9fe",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#5b21b6",
+                          fontWeight: "bold",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Fase de Produção
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "18px",
+                          color: "#6d28d9",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {calcularDuracao(
+                          pedidoAtivo.tsProducao,
+                          pedidoAtivo.tsSaida
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#5b21b6" }}>
+                        Resp:{" "}
+                        {getResponsavel(
+                          pedidoAtivo.historicoAcoes,
+                          "FINALIZADO"
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <HistoricoView historico={pedidoAtivo.historicoAcoes} />
+            </div>
           ) : (
             <div
               style={{
                 textAlign: "center",
-                marginTop: "100px",
                 color: "#94a3b8",
+                marginTop: "100px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
               }}
             >
-              <h2>👈 Selecione um item</h2>
+              <div style={{ fontSize: "40px", marginBottom: "10px" }}>👈</div>
+              Selecione um pedido ao lado para começar
             </div>
           )}
         </div>

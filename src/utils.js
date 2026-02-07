@@ -1,5 +1,3 @@
-// src/utils.js
-
 export const mapearStatus = (s) => {
   switch (s) {
     case "leads":

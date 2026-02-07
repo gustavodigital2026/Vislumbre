@@ -6,22 +6,28 @@ import {
   normalizar,
 } from "../utils";
 
+// --- GRÁFICO ---
 const LineChart = ({ dados }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
-  if (!dados || dados.length === 0)
+
+  if (!dados || dados.length === 0) {
     return (
       <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
         Sem dados suficientes.
       </div>
     );
+  }
+
   const width = 800;
   const height = 250;
   const paddingLeft = 70;
   const paddingBottom = 40;
   const paddingRight = 40;
   const paddingTop = 40;
+
   const maxDataVal = Math.max(...dados.map((d) => d.valor), 0);
   const maxVal = Math.max(maxDataVal, 1) * 1.2;
+
   const yMax =
     height -
     paddingBottom -
@@ -30,6 +36,7 @@ const LineChart = ({ dados }) => {
     height -
     paddingBottom -
     (maxDataVal / 2 / maxVal) * (height - paddingBottom - paddingTop);
+
   const points = dados.map((d, i) => {
     const xStep =
       dados.length > 1
@@ -42,22 +49,22 @@ const LineChart = ({ dados }) => {
       (d.valor / maxVal) * (height - paddingBottom - paddingTop);
     return { x, y, ...d };
   });
+
   const pathD =
     points.length > 1
       ? points
           .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
           .join(" ")
       : "";
+
   return (
     <div style={{ width: "100%", overflowX: "auto", marginTop: "10px" }}>
-      {" "}
       <svg
         width="100%"
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         style={{ overflow: "visible" }}
       >
-        {" "}
         <line
           x1={paddingLeft}
           y1={height - paddingBottom}
@@ -65,10 +72,10 @@ const LineChart = ({ dados }) => {
           y2={height - paddingBottom}
           stroke="#e2e8f0"
           strokeWidth="2"
-        />{" "}
+        />
+
         {maxDataVal > 0 && (
           <>
-            {" "}
             <line
               x1={paddingLeft}
               y1={yMax}
@@ -77,7 +84,7 @@ const LineChart = ({ dados }) => {
               stroke="#cbd5e1"
               strokeWidth="1"
               strokeDasharray="4,4"
-            />{" "}
+            />
             <text
               x={paddingLeft - 10}
               y={yMax + 4}
@@ -87,7 +94,8 @@ const LineChart = ({ dados }) => {
               fontWeight="bold"
             >
               {formatarMoeda(maxDataVal)}
-            </text>{" "}
+            </text>
+
             <line
               x1={paddingLeft}
               y1={yHalf}
@@ -96,7 +104,7 @@ const LineChart = ({ dados }) => {
               stroke="#e2e8f0"
               strokeWidth="1"
               strokeDasharray="4,4"
-            />{" "}
+            />
             <text
               x={paddingLeft - 10}
               y={yHalf + 4}
@@ -105,9 +113,10 @@ const LineChart = ({ dados }) => {
               fill="#94a3b8"
             >
               {formatarMoeda(maxDataVal / 2)}
-            </text>{" "}
+            </text>
           </>
-        )}{" "}
+        )}
+
         <text
           x={paddingLeft - 10}
           y={height - paddingBottom + 4}
@@ -116,7 +125,8 @@ const LineChart = ({ dados }) => {
           fill="#94a3b8"
         >
           R$ 0,00
-        </text>{" "}
+        </text>
+
         {pathD && (
           <path
             d={pathD}
@@ -126,10 +136,10 @@ const LineChart = ({ dados }) => {
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-        )}{" "}
+        )}
+
         {points.map((p, i) => (
           <g key={i}>
-            {" "}
             <circle
               cx={p.x}
               cy={p.y}
@@ -138,7 +148,7 @@ const LineChart = ({ dados }) => {
               onMouseEnter={() => setHoveredPoint(p)}
               onMouseLeave={() => setHoveredPoint(null)}
               style={{ cursor: "pointer" }}
-            />{" "}
+            />
             <circle
               cx={p.x}
               cy={p.y}
@@ -147,7 +157,7 @@ const LineChart = ({ dados }) => {
               stroke="white"
               strokeWidth="3"
               style={{ pointerEvents: "none" }}
-            />{" "}
+            />
             <text
               x={p.x}
               y={height - 10}
@@ -162,15 +172,15 @@ const LineChart = ({ dados }) => {
               }}
             >
               {p.label}
-            </text>{" "}
+            </text>
           </g>
-        ))}{" "}
+        ))}
+
         {hoveredPoint && (
           <g
             transform={`translate(${hoveredPoint.x}, ${hoveredPoint.y - 65})`}
             style={{ pointerEvents: "none" }}
           >
-            {" "}
             <rect
               x="-60"
               y="0"
@@ -179,7 +189,7 @@ const LineChart = ({ dados }) => {
               rx="8"
               fill="#1e293b"
               filter="drop-shadow(0px 4px 4px rgba(0,0,0,0.2))"
-            />{" "}
+            />
             <text
               x="0"
               y="20"
@@ -189,7 +199,7 @@ const LineChart = ({ dados }) => {
               fontWeight="bold"
             >
               {hoveredPoint.label}
-            </text>{" "}
+            </text>
             <text
               x="0"
               y="40"
@@ -199,21 +209,24 @@ const LineChart = ({ dados }) => {
               fontWeight="800"
             >
               {formatarMoeda(hoveredPoint.valor)}
-            </text>{" "}
-            <path d="M -6 55 L 6 55 L 0 61 Z" fill="#1e293b" />{" "}
+            </text>
+            <path d="M -6 55 L 6 55 L 0 61 Z" fill="#1e293b" />
           </g>
-        )}{" "}
-      </svg>{" "}
+        )}
+      </svg>
     </div>
   );
 };
 
+// --- PAINEL PRINCIPAL ---
 const StatsPanel = ({ pedidos, servicos, voltar }) => {
+  // DATA PADRÃO: 10 DIAS ATRÁS
   const [dataInicio, setDataInicio] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 10);
     return d.toISOString().split("T")[0];
   });
+
   const [dataFim, setDataFim] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -225,8 +238,10 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     const vendasRaw = {};
     let faturamentoTotal = 0;
     let totalDevolucoes = 0;
+
     servicos.forEach((s) => (financeiro[s.nome] = 0));
     financeiro["Outros"] = 0;
+
     if (viewMode === "dia") {
       let curr = new Date(dataInicio + "T00:00:00");
       const end = new Date(dataFim + "T23:59:59");
@@ -237,6 +252,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
         }
       }
     }
+
     const inicioTs = new Date(dataInicio + "T00:00:00").getTime();
     const fimTs = new Date(dataFim + "T23:59:59.999").getTime();
 
@@ -248,10 +264,12 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
           parseDataSegura(b.timestamp || b.data)
       );
       let tsCriacao = pedido.tsEntrada;
+
       histOrdenado.forEach((acao) => {
         let acaoTs = parseDataSegura(acao.timestamp || acao.data);
         if (acaoTs < inicioTs || acaoTs > fimTs) return;
         const usuario = acao.user || "Sistema";
+
         if (!stats[usuario])
           stats[usuario] = {
             leads: 0,
@@ -261,10 +279,12 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             tempoProducaoTotal: 0,
           };
         const desc = normalizar(acao.desc);
+
         if (desc.includes("criou") || desc.includes("lead")) {
           stats[usuario].leads++;
           if (!tsCriacao) tsCriacao = acaoTs;
         }
+
         if (desc.includes("producao") || desc.includes("produção")) {
           stats[usuario].vendas++;
           if (tsCriacao > 0 && acaoTs > tsCriacao)
@@ -282,26 +302,31 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
               (vendasRaw[diaNormalizado] || 0) + valor;
           }
         }
+
         if (desc.includes("finalizado") || desc.includes("entregue")) {
           stats[usuario].entregas++;
-          const acaoProducao = histOrdenado.find((h) =>
-            normalizar(h.desc).includes("producao")
-          );
-          const base = acaoProducao
-            ? parseDataSegura(acaoProducao.timestamp || acaoProducao.data)
-            : tsCriacao;
+          const base = parseDataSegura(pedido.tsProducao) || tsCriacao;
           if (base > 0 && acaoTs > base)
             stats[usuario].tempoProducaoTotal += acaoTs - base;
         }
       });
     });
+
     const aggregated = {};
+    const getWeekNumber = (d) => {
+      d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    };
+
     Object.keys(vendasRaw).forEach((ts) => {
       const date = new Date(Number(ts));
       const valor = vendasRaw[ts];
       let key = "",
         label = "",
         sortVal = Number(ts);
+
       if (viewMode === "dia") {
         key = ts;
         label = `${date.getDate().toString().padStart(2, "0")}/${(
@@ -310,22 +335,42 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
           .toString()
           .padStart(2, "0")}`;
       } else if (viewMode === "semana") {
-        key = `W${date.getDate()}`;
-        label = `Semana`;
-        sortVal = Number(ts);
+        const week = getWeekNumber(date);
+        key = `${date.getFullYear()}-W${week}`;
+        label = `Sem ${week}`;
+        sortVal = week;
       } else if (viewMode === "mes") {
-        key = `M${date.getMonth()}`;
-        label = `Mês`;
-        sortVal = Number(ts);
+        key = `${date.getFullYear()}-${date.getMonth()}`;
+        const meses = [
+          "Jan",
+          "Fev",
+          "Mar",
+          "Abr",
+          "Mai",
+          "Jun",
+          "Jul",
+          "Ago",
+          "Set",
+          "Out",
+          "Nov",
+          "Dez",
+        ];
+        label = `${meses[date.getMonth()]}/${date
+          .getFullYear()
+          .toString()
+          .substr(2)}`;
+        sortVal = date.getFullYear() * 100 + date.getMonth();
       } else if (viewMode === "ano") {
-        key = `Y${date.getFullYear()}`;
+        key = `${date.getFullYear()}`;
         label = key;
-        sortVal = Number(ts);
+        sortVal = date.getFullYear();
       }
+
       if (!aggregated[key])
         aggregated[key] = { label, valor: 0, sortKey: sortVal };
       aggregated[key].valor += valor;
     });
+
     return {
       operadores: Object.keys(stats).map((nome) => ({
         nome,
@@ -345,6 +390,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
       ),
     };
   };
+
   const {
     operadores,
     financeiro,
@@ -352,6 +398,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
     totalDevolucoes,
     dadosGrafico,
   } = calcularMetricas();
+
   const gerarGraficoPizza = () => {
     if (faturamentoTotal === 0) return "conic-gradient(#e2e8f0 0% 100%)";
     let acumulado = 0;
@@ -396,6 +443,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </button>
           </div>
         </div>
+
         <div className="stats-kpi-grid">
           <div className="kpi-card">
             <div className="kpi-title">Faturamento Líquido</div>
@@ -424,6 +472,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </div>
           </div>
         </div>
+
         <div
           style={{
             display: "grid",
@@ -466,6 +515,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </div>
             <LineChart dados={dadosGrafico} />
           </div>
+
           <div
             className="card-panel"
             style={{
@@ -527,6 +577,7 @@ const StatsPanel = ({ pedidos, servicos, voltar }) => {
             </div>
           </div>
         </div>
+
         <div className="card-panel">
           <div className="card-header">🏆 Performance da Equipe</div>
           <div style={{ overflowX: "auto" }}>
