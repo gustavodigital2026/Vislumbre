@@ -55,6 +55,17 @@ const styles = {
     background: "#f9f9f9",
     transition: "background 0.2s",
   },
+  btnRemove: {
+    background: "#fee2e2",
+    color: "#ef4444",
+    border: "1px solid #fca5a5",
+    padding: "5px 10px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: "bold",
+    marginTop: "10px",
+  },
 };
 
 export default function Details({
@@ -69,7 +80,7 @@ export default function Details({
   servicos = [],
   currentUser,
 }) {
-  const fileInputRef = useRef(null); // Referência para o input invisível
+  const fileInputRef = useRef(null);
   const [editMode, setEditMode] = useState(false);
 
   if (!ativo) return null;
@@ -87,16 +98,21 @@ export default function Details({
     }
   };
 
-  // Função para lidar com o clique na área de drop
+  // REMOVER COMPROVANTE
+  const removerComprovante = (e) => {
+    e.stopPropagation(); // Impede que abra a janela de seleção de arquivo ao clicar no botão
+    if (window.confirm("Tem certeza que deseja remover este comprovante?")) {
+      atualizarPedido(ativo.id, "comprovanteUrl", null);
+    }
+  };
+
   const handleAreaClick = () => {
     fileInputRef.current.click();
   };
 
-  // Função para lidar com a seleção de arquivo pelo clique
   const onFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Simulamos um evento de drop para reaproveitar a função handleDrop do App.js
       const fakeEvent = {
         preventDefault: () => {},
         stopPropagation: () => {},
@@ -106,11 +122,10 @@ export default function Details({
     }
   };
 
-  // Verifica se o comprovante parece ser um PDF
-  const isPDF =
-    ativo.comprovanteUrl &&
-    (ativo.comprovanteUrl.toLowerCase().includes(".pdf") ||
-      ativo.comprovanteUrl.toLowerCase().includes("pdf?"));
+  // Helper para verificar PDF
+  const isPDF = (url) =>
+    url &&
+    (url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("pdf?"));
 
   const ListaAudios = ({ audios }) =>
     audios && audios.length > 0 ? (
@@ -352,26 +367,24 @@ export default function Details({
             </span>
           </div>
 
-          {/* ÁREA DE DROP (ATUALIZADA: CLIQUE + PDF) */}
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => handleDrop(e, ativo.id)}
-            onClick={handleAreaClick} // CLIQUE HABILITADO
+            onClick={handleAreaClick}
             style={styles.areaDrop}
             title="Clique ou arraste o comprovante"
           >
-            {/* INPUT INVISÍVEL QUE ACEITA PDF E IMAGEM */}
             <input
               type="file"
               ref={fileInputRef}
               style={{ display: "none" }}
-              accept="image/*,application/pdf" // ACEITA PDF
+              accept="image/*,application/pdf"
               onChange={onFileSelect}
             />
 
             {ativo.comprovanteUrl ? (
               <div>
-                {isPDF ? (
+                {isPDF(ativo.comprovanteUrl) ? (
                   <div
                     style={{
                       display: "flex",
@@ -392,7 +405,7 @@ export default function Details({
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      Ver Documento PDF
+                      Ver PDF
                     </a>
                     <p style={{ color: "green", margin: 0, fontSize: "12px" }}>
                       Comprovante Recebido!
@@ -412,6 +425,9 @@ export default function Details({
                     <p style={{ color: "green", margin: 0 }}>Comprovante OK!</p>
                   </div>
                 )}
+                <button onClick={removerComprovante} style={styles.btnRemove}>
+                  🗑️ Remover
+                </button>
               </div>
             ) : (
               <div style={{ pointerEvents: "none" }}>
@@ -577,6 +593,72 @@ export default function Details({
               >
                 <strong>{ativo.servico}</strong>
                 <strong>{formatarMoeda(ativo.valorRaw)}</strong>
+              </div>
+            )}
+
+            {/* VISUALIZAÇÃO DO COMPROVANTE NAS TELAS FINAIS */}
+            {ativo.comprovanteUrl && (
+              <div
+                style={{
+                  marginBottom: "20px",
+                  background: "white",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border: "1px solid #a5d6a7",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    color: "#2e7d32",
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Comprovante de Pagamento:
+                </span>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  {isPDF(ativo.comprovanteUrl) ? (
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        textDecoration: "none",
+                        color: "#3b82f6",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      <span style={{ fontSize: "20px" }}>📄</span> Abrir PDF
+                    </a>
+                  ) : (
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        src={ativo.comprovanteUrl}
+                        style={{
+                          height: "60px",
+                          borderRadius: "4px",
+                          border: "1px solid #ccc",
+                        }}
+                        alt="Comprovante"
+                      />
+                    </a>
+                  )}
+                  <span style={{ fontSize: "12px", color: "#27ae60" }}>
+                    ✅ Confirmado
+                  </span>
+                </div>
               </div>
             )}
 
