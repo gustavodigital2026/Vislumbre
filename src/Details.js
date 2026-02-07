@@ -1,956 +1,776 @@
-import React, { useState, useEffect } from "react";
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-  deleteDoc,
-  getDocs,
-  where,
-} from "firebase/firestore";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
-import { db, storage } from "./firebase";
-import Sidebar from "./Sidebar";
-import Details from "./Details";
-import StatsPanel from "./components/StatsPanel";
-import {
-  AdminTeamPanel,
-  AdminServicesPanel,
-  AdminGeneralPanel,
-} from "./components/AdminPanels";
-import { normalizar, mapearStatus, formatarDuracaoHoras } from "./utils";
-import "./styles.css";
+import React, { useRef, useState } from "react";
 
-// --- LOGIN ---
-const LoginScreen = ({ onLogin }) => {
-  const [user, setUser] = useState("");
-  const [pass, setPass] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const handleLogin = async () => {
-    setLoading(true);
-    setError("");
-    if (user === "admin" && pass === "1234") {
-      const u = {
-        nome: "Admin Provisorio",
-        login: "admin",
-        role: "admin",
-        acessoStats: true,
-      };
-      localStorage.setItem("vislumbre_user", JSON.stringify(u));
-      onLogin(u);
-      return;
-    }
-    try {
-      const q = query(
-        collection(db, "usuarios"),
-        where("login", "==", user),
-        where("senha", "==", pass)
-      );
-      const qs = await getDocs(q);
-      if (!qs.empty) {
-        const u = { ...qs.docs[0].data(), id: qs.docs[0].id };
-        localStorage.setItem("vislumbre_user", JSON.stringify(u));
-        onLogin(u);
-      } else {
-        setError("Dados incorretos.");
-      }
-    } catch (e) {
-      setError("Erro de conexão.");
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
-  return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#f1f5f9",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {" "}
-      <div
-        style={{
-          background: "white",
-          padding: "40px",
-          borderRadius: "24px",
-          width: "340px",
-          textAlign: "center",
-          boxShadow: "0 20px 40px -10px rgba(0,0,0,0.1)",
-        }}
-      >
-        {" "}
-        <div
-          style={{
-            background: "white",
-            padding: "15px",
-            borderRadius: "16px",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 4px 10px -2px rgba(0, 0, 0, 0.05)",
-            display: "inline-block",
-            marginBottom: "15px",
-          }}
-        >
-          {" "}
-          <img
-            src="/logo.jpeg"
-            alt="Vislumbre Logo"
-            style={{
-              maxWidth: "210px",
-              maxHeight: "210px",
-              borderRadius: "8px",
-              display: "block",
-            }}
-          />{" "}
-        </div>{" "}
-        <h2
-          style={{
-            color: "#1e293b",
-            margin: "0 0 25px 0",
-            fontSize: "22px",
-            fontWeight: "700",
-          }}
-        >
-          Vislumbre CRM
-        </h2>{" "}
-        <div className="input-group">
-          <input
-            className="modern-input"
-            placeholder="Usuário"
-            value={user}
-            onKeyDown={handleKeyDown}
-            onChange={(e) => setUser(e.target.value)}
-            style={{ padding: "14px" }}
-          />
-        </div>{" "}
-        <div className="input-group" style={{ marginBottom: "25px" }}>
-          <input
-            className="modern-input"
-            type="password"
-            placeholder="Senha"
-            value={pass}
-            onKeyDown={handleKeyDown}
-            onChange={(e) => setPass(e.target.value)}
-            style={{ padding: "14px" }}
-          />
-        </div>{" "}
-        {error && (
-          <p
-            style={{
-              color: "#ef4444",
-              fontSize: "13px",
-              marginBottom: "15px",
-              background: "#fef2f2",
-              padding: "8px",
-              borderRadius: "6px",
-            }}
-          >
-            {error}
-          </p>
-        )}{" "}
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="btn-primary"
-          style={{ padding: "14px", fontSize: "16px" }}
-        >
-          {loading ? "Verificando..." : "Entrar no Sistema"}
-        </button>{" "}
-      </div>{" "}
-    </div>
-  );
+const formatarMoeda = (v) => {
+  if (!v) return "";
+  const n = String(v).replace(/\D/g, "");
+  return (Number(n) / 100).toFixed(2).replace(".", ",");
 };
 
-// --- APP PRINCIPAL ---
-export default function App() {
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem("vislumbre_user");
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [aba, setAba] = useState("leads");
-  const [pedidos, setPedidos] = useState([]);
-  const [servicos, setServicos] = useState([]);
+const styles = {
+  grupoInput: { marginBottom: "20px" },
+  label: {
+    display: "block",
+    marginBottom: "8px",
+    fontWeight: "bold",
+    color: "#34495e",
+  },
+  input: {
+    width: "100%",
+    padding: "12px",
+    borderRadius: "6px",
+    border: "1px solid #bdc3c7",
+    fontSize: "14px",
+    boxSizing: "border-box",
+  },
+  btnVerde: {
+    background: "#27ae60",
+    color: "white",
+    border: "none",
+    padding: "15px 25px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "16px",
+    fontWeight: "bold",
+    width: "100%",
+    boxShadow: "0 4px 0 #219150",
+  },
+  btnZap: {
+    background: "#25D366",
+    color: "white",
+    border: "none",
+    padding: "15px 25px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "16px",
+    fontWeight: "bold",
+    width: "100%",
+  },
 
-  const [apiKey, setApiKey] = useState(
-    () => localStorage.getItem("vislumbre_google_key") || ""
-  );
-  const [modeloIA, setModeloIA] = useState(
-    () => localStorage.getItem("vislumbre_model") || "gemini-1.5-flash"
-  );
-  const [horasReativacao, setHorasReativacao] = useState(
-    () => Number(localStorage.getItem("vislumbre_reactivation_hours")) || 24
-  );
-  const [promptIA, setPromptIA] = useState(
-    () =>
-      localStorage.getItem("vislumbre_prompt_ia") ||
-      "Crie um roteiro criativo para um serviço de {servico}. O nome do cliente é {cliente}. Detalhes importantes: {obs}."
-  );
+  // BOTÃO DE RETORNO (NOVO)
+  btnVoltar: {
+    background: "#f59e0b",
+    color: "white",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "bold",
+    marginTop: "15px",
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+  },
 
-  const [showConfig, setShowConfig] = useState(false);
-  const [loadingIA, setLoadingIA] = useState(false);
-  const [idSelecionado, setIdSelecionado] = useState(null);
-  const [novoTel, setNovoTel] = useState("");
-  const [termoBusca, setTermoBusca] = useState("");
-  const [filtroDataInicio, setFiltroDataInicio] = useState("");
-  const [filtroDataFim, setFiltroDataFim] = useState("");
+  areaDrop: {
+    border: "2px dashed #bdc3c7",
+    padding: "20px",
+    textAlign: "center",
+    borderRadius: "8px",
+    marginBottom: "20px",
+    cursor: "pointer",
+    background: "#f9f9f9",
+    transition: "background 0.2s",
+  },
+  btnRemove: {
+    background: "#fee2e2",
+    color: "#ef4444",
+    border: "1px solid #fca5a5",
+    padding: "5px 10px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: "bold",
+    marginTop: "10px",
+  },
+};
 
-  useEffect(() => {
-    const unsub = onSnapshot(
-      query(collection(db, "pedidos"), orderBy("tsEntrada", "desc")),
-      (snap) =>
-        setPedidos(
-          snap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-            historicoAcoes: d.data().historicoAcoes || [],
-          }))
-        )
-    );
-    return () => unsub();
-  }, []);
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "servicos"), (snap) => {
-      const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (lista.length === 0) {
-        addDoc(collection(db, "servicos"), { nome: "Jingle", cor: "#f59e0b" });
-        addDoc(collection(db, "servicos"), { nome: "Vídeo", cor: "#3b82f6" });
-      } else setServicos(lista);
-    });
-    return () => unsub();
-  }, []);
+export default function Details({
+  ativo,
+  atualizarPedido,
+  moverPara,
+  finalizarComWhats,
+  gerarRoteiroIA,
+  loadingIA,
+  handleAudioUpload,
+  handleDrop,
+  servicos = [],
+  currentUser,
+}) {
+  const fileInputRef = useRef(null);
+  const [editMode, setEditMode] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem("vislumbre_google_key", apiKey);
-    localStorage.setItem("vislumbre_model", modeloIA);
-    localStorage.setItem("vislumbre_reactivation_hours", horasReativacao);
-    localStorage.setItem("vislumbre_prompt_ia", promptIA);
-  }, [apiKey, modeloIA, horasReativacao, promptIA]);
+  if (!ativo) return null;
+  const isAdmin = currentUser?.role === "admin";
 
-  const handleLogout = () => {
-    localStorage.removeItem("vislumbre_user");
-    setCurrentUser(null);
-  };
-
-  const getNovoHistorico = (pedido, desc) => [
-    {
-      user: currentUser?.nome || "Sistema",
-      desc,
-      data: new Date().toLocaleString(),
-      timestamp: Date.now(),
-    },
-    ...(pedido.historicoAcoes || []),
-  ];
-  const getResponsavel = (historico, palavraChave) => {
-    const acao = historico?.find((h) =>
-      h.desc.toUpperCase().includes(palavraChave.toUpperCase())
-    );
-    return acao ? acao.user : "Sistema";
-  };
-  const calcularDuracao = (inicio, fim) => {
-    if (!inicio || !fim) return "-";
-    return formatarDuracaoHoras(fim - inicio);
-  };
-
-  const adicionarLead = async () => {
-    if (!novoTel) return;
-    try {
-      await addDoc(collection(db, "pedidos"), {
-        cliente: "",
-        telefone: novoTel,
-        status: "leads",
-        obs: "",
-        servico: servicos[0]?.nome || "Outros",
-        valorRaw: "",
-        comprovanteUrl: null,
-        audios: [],
-        roteiro: "",
-        tsEntrada: Date.now(),
-        dataEntrada: new Date().toLocaleString(),
-        historicoAcoes: [
-          {
-            user: currentUser.nome,
-            desc: "Criou o Lead",
-            data: new Date().toLocaleString(),
-            timestamp: Date.now(),
-          },
-        ],
-      });
-      setNovoTel("");
-    } catch (e) {
-      alert("Erro: " + e.message);
-    }
-  };
-  const atualizarPedido = async (id, campo, valor) =>
-    await updateDoc(doc(db, "pedidos", id), { [campo]: valor });
-
-  // --- FUNÇÃO MOVER (COM LOGICA DE RETORNO) ---
-  const moverPara = async (id, novoStatus) => {
-    const pedido = pedidos.find((p) => p.id === id);
-    // Só exige roteiro se estiver AVANÇANDO para produção (se estiver voltando, não precisa travar)
-    if (
-      novoStatus === "producao" &&
-      pedido.status === "leads" &&
-      !pedido.roteiro
-    )
-      return alert("Roteiro obrigatório!");
-
-    const now = Date.now();
-
-    // Determina se está voltando ou indo
-    const acaoDesc =
-      (pedido.status === "finalizados" && novoStatus === "producao") ||
-      (pedido.status === "producao" && novoStatus === "leads")
-        ? `Retornou para ${mapearStatus(novoStatus).toUpperCase()}`
-        : `Moveu para ${mapearStatus(novoStatus).toUpperCase()}`;
-
-    let updates = {
-      status: novoStatus,
-      tsProducao: novoStatus === "producao" ? now : pedido.tsProducao || null,
-      tsSaida: novoStatus === "finalizados" ? now : pedido.tsSaida || null,
-      historicoAcoes: getNovoHistorico(pedido, acaoDesc),
-    };
-
-    if (novoStatus === "producao") {
-      updates.dataProducao = new Date().toLocaleString();
-      updates.tsVenda = now;
-    }
-    if (novoStatus === "finalizados") {
-      updates.dataSaida = new Date().toLocaleString();
-    }
-
-    // Se voltar para produção, mantemos os áudios e comprovantes.
-    // Se voltar para leads, mantemos tudo também.
-
-    await updateDoc(doc(db, "pedidos", id), updates);
-    setIdSelecionado(null);
-  };
-
-  const handleProofDrop = async (e, id) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      try {
-        const storageRef = ref(
-          storage,
-          `comprovantes/${Date.now()}_${file.name}`
-        );
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        const pedido = pedidos.find((p) => p.id === id);
-        await updateDoc(doc(db, "pedidos", id), {
-          comprovanteUrl: url,
-          historicoAcoes: getNovoHistorico(pedido, "Enviou Comprovante"),
-        });
-      } catch (err) {
-        alert("Erro: " + err.message);
-      }
-    }
-  };
-  const handleAudioUpload = async (e, id) => {
-    const file = e.target.files[0];
-    if (file) {
-      const btn = e.target.nextSibling;
-      if (btn) btn.innerText = "⏳ Enviando...";
-      try {
-        const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        const pedido = pedidos.find((p) => p.id === id);
-        await updateDoc(doc(db, "pedidos", id), {
-          audios: [...(pedido.audios || []), url],
-          historicoAcoes: getNovoHistorico(pedido, "Anexou Áudio (Nuvem)"),
-        });
-      } catch (err) {
-        alert("Erro no upload: " + err.message);
-      } finally {
-        if (btn) btn.innerText = "← Adicionar áudio";
-      }
-    }
-    e.target.value = null;
-  };
-  const finalizarComWhats = (p) => {
-    const phone = p.telefone.replace(/\D/g, "");
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=Seu projeto está pronto.`,
-      "_blank"
-    );
-    moverPara(p.id, "finalizados");
-  };
-  const reativarLead = (e, p) => {
-    e.stopPropagation();
-    const phone = p.telefone.replace(/\D/g, "");
-    window.open(
-      `https://web.whatsapp.com/send?phone=55${phone}&text=Olá! Podemos retomar?`,
-      "_blank"
-    );
-  };
-
-  const gerarRoteiroIA = async (p) => {
-    if (!apiKey) return alert("Configure a API Key em Definições Gerais!");
-    setLoadingIA(true);
-    const promptFinal = promptIA
-      .replace(/{cliente}/g, p.cliente || "Cliente")
-      .replace(/{servico}/g, p.servico || "Serviço")
-      .replace(/{obs}/g, p.obs || "Sem observações");
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey.trim()}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptFinal }] }],
-          }),
-        }
-      );
-      const d = await res.json();
-      const txt = d.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (txt)
-        await updateDoc(doc(db, "pedidos", p.id), {
-          roteiro: txt,
-          historicoAcoes: getNovoHistorico(p, "Gerou Roteiro com IA"),
-        });
-    } catch (e) {
-      alert("Erro IA");
-    } finally {
-      setLoadingIA(false);
-    }
-  };
-
-  const handleResetSystem = async () => {
+  const toggleDevolucao = () => {
+    const novoStatus = !ativo.devolvido;
     if (
       window.confirm(
-        "🚨 PERIGO: Isso vai apagar TODOS os pedidos do sistema!\n\nTem certeza?"
-      ) &&
-      window.confirm("Última chance: Essa ação é irreversível.")
+        novoStatus ? "Marcar como DEVOLVIDO?" : "Cancelar devolução?"
+      )
     ) {
-      const snap = await getDocs(collection(db, "pedidos"));
-      await Promise.all(
-        snap.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id)))
-      );
-      alert("Sistema resetado.");
-      window.location.reload();
+      atualizarPedido(ativo.id, "devolvido", novoStatus);
+      setEditMode(false);
     }
   };
 
-  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
-  if (aba === "admin_team")
-    return <AdminTeamPanel voltar={() => setAba("leads")} />;
-  if (aba === "admin_services")
-    return (
-      <AdminServicesPanel servicos={servicos} voltar={() => setAba("leads")} />
-    );
-  if (aba === "admin_general")
-    return (
-      <AdminGeneralPanel
-        apiKey={apiKey}
-        setApiKey={setApiKey}
-        horas={horasReativacao}
-        setHoras={setHorasReativacao}
-        promptIA={promptIA}
-        setPromptIA={setPromptIA}
-        voltar={() => setAba("leads")}
-      />
-    );
-  if (aba === "stats")
-    return (
-      <StatsPanel
-        pedidos={pedidos}
-        servicos={servicos}
-        voltar={() => setAba("leads")}
-      />
-    );
-
-  const filterStart = filtroDataInicio
-    ? new Date(filtroDataInicio + "T00:00:00").getTime()
-    : 0;
-  const filterEnd = filtroDataFim
-    ? new Date(filtroDataFim + "T23:59:59.999").getTime()
-    : Infinity;
-
-  const listaFiltrada = pedidos.filter((p) => {
-    if (aba === "leads") {
-      if (p.status !== "leads" && p.status !== "pendentes") return false;
-    } else {
-      if (p.status !== aba) return false;
+  const removerComprovante = (e) => {
+    e.stopPropagation();
+    if (window.confirm("Tem certeza que deseja remover este comprovante?")) {
+      atualizarPedido(ativo.id, "comprovanteUrl", null);
     }
-    const matchTexto =
-      (p.cliente &&
-        p.cliente.toLowerCase().includes(termoBusca.toLowerCase())) ||
-      (p.telefone && p.telefone.includes(termoBusca));
-    const pData = p.tsEntrada || 0;
-    return matchTexto && pData >= filterStart && pData <= filterEnd;
-  });
+  };
 
-  const pedidoAtivo = pedidos.find((p) => p.id === idSelecionado);
-  const HistoricoView = ({ historico }) => (
-    <div
-      style={{
-        marginTop: "30px",
-        borderTop: "2px solid #e2e8f0",
-        paddingTop: "20px",
-      }}
-    >
-      <h4 style={{ margin: "0 0 10px 0", color: "#64748b" }}>
-        📜 Histórico de Atividades
-      </h4>
-      <div
-        style={{
-          background: "#f9f9f9",
-          padding: "10px",
-          borderRadius: "6px",
-          maxHeight: "150px",
-          overflowY: "auto",
-          border: "1px solid #e2e8f0",
-        }}
-      >
-        {(!historico || historico.length === 0) && (
-          <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-            Nenhuma atividade registrada.
-          </span>
-        )}
-        {historico &&
-          historico.map((h, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: "12px",
-                marginBottom: "8px",
-                borderBottom: "1px dashed #e2e8f0",
-                paddingBottom: "4px",
-              }}
-            >
-              <span style={{ fontWeight: "bold", color: "#1e293b" }}>
-                {h.user}
-              </span>{" "}
-              <span style={{ color: "#64748b" }}> - {h.data}</span>
-              <div style={{ color: "#334155", marginTop: "2px" }}>{h.desc}</div>
-            </div>
-          ))}
+  const handleAreaClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const onFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const fakeEvent = {
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        dataTransfer: { files: [file] },
+      };
+      handleDrop(fakeEvent, ativo.id);
+    }
+  };
+
+  const isPDF = (url) =>
+    url &&
+    (url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("pdf?"));
+
+  const ListaAudios = ({ audios }) =>
+    audios && audios.length > 0 ? (
+      <div style={{ marginBottom: "10px" }}>
+        {audios.map((url, i) => (
+          <div
+            key={i}
+            style={{
+              marginBottom: "5px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <audio controls src={url} style={{ flex: 1, height: "30px" }} />
+            <span style={{ fontSize: "12px", color: "#7f8c8d" }}>#{i + 1}</span>
+          </div>
+        ))}
       </div>
-    </div>
-  );
+    ) : null;
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: "Segoe UI, sans-serif",
-      }}
-      onClick={() => setShowConfig(false)}
-    >
-      <header
-        style={{
-          padding: "15px 25px",
-          background: "#1e293b",
-          color: "white",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-        }}
-      >
-        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <img
-              src="/logo.jpeg"
-              alt="Logo"
-              style={{
-                height: "40px",
-                borderRadius: "4px",
-                marginRight: "10px",
-              }}
-            />
-            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>
-              Vislumbre
-            </h2>
-          </div>
-          <span
+    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      {(ativo.status === "leads" || ativo.status === "pendentes") && (
+        <>
+          <div
             style={{
-              fontSize: "11px",
-              background: "#3b82f6",
-              color: "white",
-              padding: "4px 10px",
-              borderRadius: "20px",
-              fontWeight: "600",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
+              background: "#fdfdfd",
+              padding: "15px",
+              borderRadius: "8px",
+              border: "1px solid #eee",
+              marginBottom: "20px",
             }}
           >
-            {currentUser.nome}
-          </span>
-          {currentUser.role === "admin" && (
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowConfig(!showConfig);
-                }}
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  marginLeft: "10px",
-                  padding: "8px",
-                  borderRadius: "8px",
-                  transition: "0.2s",
-                }}
-              >
-                ⚙️ Ajustes
-              </button>
-              {showConfig && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "45px",
-                    left: "0",
-                    background: "white",
-                    color: "#333",
-                    boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-                    borderRadius: "10px",
-                    overflow: "hidden",
-                    zIndex: 100,
-                    width: "200px",
-                    border: "1px solid #e2e8f0",
-                  }}
-                >
-                  <div
-                    onClick={() => setAba("admin_team")}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    👥 Equipe
-                  </div>
-                  <div
-                    onClick={() => setAba("admin_services")}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    🛠️ Serviços
-                  </div>
-                  <div
-                    onClick={() => setAba("stats")}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    📊 Estatísticas
-                  </div>
-                  <div
-                    onClick={() => setAba("admin_general")}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: "#3b82f6",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    ⚙️ Definições Gerais
-                  </div>
-                  <div
-                    onClick={handleResetSystem}
-                    style={{
-                      padding: "12px 15px",
-                      cursor: "pointer",
-                      color: "#ef4444",
-                      fontSize: "13px",
-                      background: "#fef2f2",
-                      fontWeight: "600",
-                    }}
-                  >
-                    🗑️ Resetar Tudo
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {currentUser.role !== "admin" && currentUser.acessoStats && (
-            <button
-              onClick={() => setAba("stats")}
-              style={{
-                background: "#8b5cf6",
-                border: "none",
-                color: "white",
-                cursor: "pointer",
-                marginLeft: "10px",
-                borderRadius: "6px",
-                padding: "6px 12px",
-                fontSize: "13px",
-                fontWeight: "600",
-              }}
-            >
-              📊 Stats
-            </button>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          {[
-            { id: "leads", l: "Leads & Criação" },
-            { id: "producao", l: "Produção" },
-            { id: "finalizados", l: "Entregues" },
-          ].map((m) => (
-            <button
-              key={m.id}
-              onClick={() => {
-                setAba(m.id);
-                setIdSelecionado(null);
-              }}
-              style={{
-                background: aba === m.id ? "#fbbf24" : "rgba(255,255,255,0.1)",
-                color: aba === m.id ? "#1e293b" : "#94a3b8",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "13px",
-                transition: "0.2s",
-              }}
-            >
-              {m.l}
-            </button>
-          ))}
-          <button
-            onClick={handleLogout}
-            style={{
-              background: "#ef4444",
-              border: "none",
-              color: "white",
-              borderRadius: "6px",
-              cursor: "pointer",
-              padding: "8px 16px",
-              fontWeight: "600",
-              fontSize: "13px",
-            }}
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <Sidebar
-          aba={aba}
-          lista={listaFiltrada}
-          idSelecionado={idSelecionado}
-          setIdSelecionado={setIdSelecionado}
-          novoTel={novoTel}
-          setNovoTel={setNovoTel}
-          adicionarLead={adicionarLead}
-          reativarLead={reativarLead}
-          termoBusca={termoBusca}
-          setTermoBusca={setTermoBusca}
-          filtroDataInicio={filtroDataInicio}
-          setFiltroDataInicio={setFiltroDataInicio}
-          filtroDataFim={filtroDataFim}
-          setFiltroDataFim={setFiltroDataFim}
-          horasReativacao={horasReativacao}
-        />
-        <div
-          style={{
-            flex: 1,
-            padding: "20px",
-            overflowY: "auto",
-            background: "#f8fafc",
-          }}
-        >
-          {pedidoAtivo ? (
-            <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-              <div style={{ marginBottom: "20px", textAlign: "right" }}>
-                <span
-                  style={{
-                    background: "#cbd5e1",
-                    color: "#334155",
-                    padding: "6px 12px",
-                    borderRadius: "20px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {mapearStatus(pedidoAtivo.status)}
-                </span>
-              </div>
-
-              <Details
-                ativo={pedidoAtivo}
-                atualizarPedido={atualizarPedido}
-                moverPara={moverPara}
-                finalizarComWhats={finalizarComWhats}
-                gerarRoteiroIA={gerarRoteiroIA}
-                loadingIA={loadingIA}
-                handleAudioUpload={handleAudioUpload}
-                handleDrop={handleProofDrop}
-                servicos={servicos}
-                currentUser={currentUser}
-              />
-
-              {pedidoAtivo.status === "finalizados" && (
-                <div
-                  style={{
-                    marginTop: "30px",
-                    padding: "20px",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "12px",
-                    background: "white",
-                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
-                  }}
-                >
-                  <h3
-                    style={{
-                      margin: "0 0 15px 0",
-                      color: "#1e293b",
-                      fontSize: "16px",
-                    }}
-                  >
-                    ⏱️ Performance deste Pedido
-                  </h3>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "20px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "15px",
-                        background: "#fff7ed",
-                        borderRadius: "8px",
-                        border: "1px solid #ffedd5",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "#9a3412",
-                          fontWeight: "bold",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Fase de Negociação
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "18px",
-                          color: "#c2410c",
-                          fontWeight: "800",
-                        }}
-                      >
-                        {calcularDuracao(
-                          pedidoAtivo.tsEntrada,
-                          pedidoAtivo.tsProducao
-                        )}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#9a3412" }}>
-                        Resp:{" "}
-                        {getResponsavel(pedidoAtivo.historicoAcoes, "PRODUÇÃO")}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        padding: "15px",
-                        background: "#f5f3ff",
-                        borderRadius: "8px",
-                        border: "1px solid #ede9fe",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "#5b21b6",
-                          fontWeight: "bold",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Fase de Produção
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "18px",
-                          color: "#6d28d9",
-                          fontWeight: "800",
-                        }}
-                      >
-                        {calcularDuracao(
-                          pedidoAtivo.tsProducao,
-                          pedidoAtivo.tsSaida
-                        )}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#5b21b6" }}>
-                        Resp:{" "}
-                        {getResponsavel(
-                          pedidoAtivo.historicoAcoes,
-                          "FINALIZADO"
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <HistoricoView historico={pedidoAtivo.historicoAcoes} />
-            </div>
-          ) : (
             <div
               style={{
-                textAlign: "center",
-                color: "#94a3b8",
-                marginTop: "100px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "20px",
+                marginBottom: "20px",
               }}
             >
-              <div style={{ fontSize: "40px", marginBottom: "10px" }}>👈</div>
-              Selecione um pedido ao lado para começar
+              <div style={styles.grupoInput}>
+                <label style={styles.label}>Nome:</label>
+                <input
+                  value={ativo.cliente}
+                  onChange={(e) =>
+                    atualizarPedido(ativo.id, "cliente", e.target.value)
+                  }
+                  style={styles.input}
+                  placeholder="Nome..."
+                />
+              </div>
+              <div style={styles.grupoInput}>
+                <label style={styles.label}>WhatsApp:</label>
+                <input
+                  value={ativo.telefone}
+                  onChange={(e) =>
+                    atualizarPedido(ativo.id, "telefone", e.target.value)
+                  }
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "20px",
+              }}
+            >
+              <div style={styles.grupoInput}>
+                <label style={styles.label}>Serviço:</label>
+                <select
+                  value={ativo.servico}
+                  onChange={(e) =>
+                    atualizarPedido(ativo.id, "servico", e.target.value)
+                  }
+                  style={styles.input}
+                >
+                  <option value="">Selecione...</option>
+                  {servicos.map((s) => (
+                    <option key={s.id} value={s.nome}>
+                      {s.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={styles.grupoInput}>
+                <label style={styles.label}>Valor (R$):</label>
+                <input
+                  value={formatarMoeda(ativo.valorRaw)}
+                  onChange={(e) =>
+                    atualizarPedido(
+                      ativo.id,
+                      "valorRaw",
+                      e.target.value.replace(/\D/g, "")
+                    )
+                  }
+                  style={{
+                    ...styles.input,
+                    fontWeight: "bold",
+                    color: "#27ae60",
+                  }}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.grupoInput}>
+            <label style={styles.label}>📝 Histórico / Obs:</label>
+            <textarea
+              value={ativo.obs}
+              onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
+              rows={3}
+              style={{
+                ...styles.input,
+                background: "#fff3cd",
+                border: "1px solid #f1c40f",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              margin: "30px 0",
+              borderTop: "2px dashed #3498db",
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: "-12px",
+                left: "0",
+                background: "white",
+                paddingRight: "10px",
+                color: "#3498db",
+                fontSize: "12px",
+                fontWeight: "bold",
+              }}
+            >
+              ÁREA DE CRIAÇÃO (LETRA/ROTEIRO)
+            </span>
+          </div>
+
+          <div style={styles.grupoInput}>
+            <label style={styles.label}>🎤 Áudios de Referência:</label>
+            <ListaAudios audios={ativo.audios} />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "10px",
+                background: "#f9f9f9",
+                borderRadius: "6px",
+                border: "1px solid #ddd",
+              }}
+            >
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => handleAudioUpload(e, ativo.id)}
+                style={{ fontSize: "12px" }}
+              />
+            </div>
+          </div>
+
+          <div style={styles.grupoInput}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "5px",
+              }}
+            >
+              <label style={{ fontWeight: "bold", color: "#34495e" }}>
+                Roteiro / Letra:
+              </label>
+              <button
+                onClick={() => gerarRoteiroIA(ativo)}
+                disabled={loadingIA}
+                style={{
+                  background: loadingIA
+                    ? "#ccc"
+                    : "linear-gradient(45deg, #8e44ad, #9b59b6)",
+                  color: "white",
+                  border: "none",
+                  padding: "5px 15px",
+                  borderRadius: "20px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                {loadingIA ? "..." : "✨ Criar com IA"}
+              </button>
+            </div>
+            <textarea
+              value={ativo.roteiro}
+              onChange={(e) =>
+                atualizarPedido(ativo.id, "roteiro", e.target.value)
+              }
+              rows={12}
+              placeholder="Escreva o roteiro ou letra aqui..."
+              style={{
+                ...styles.input,
+                fontFamily: "monospace",
+                fontSize: "14px",
+                border: "2px solid #3498db44",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              margin: "40px 0",
+              borderTop: "2px dashed #27ae60",
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: "-12px",
+                left: "0",
+                background: "white",
+                paddingRight: "10px",
+                color: "#27ae60",
+                fontSize: "12px",
+                fontWeight: "bold",
+              }}
+            >
+              FECHAMENTO & PAGAMENTO
+            </span>
+          </div>
+
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => handleDrop(e, ativo.id)}
+            onClick={handleAreaClick}
+            style={styles.areaDrop}
+            title="Clique ou arraste o comprovante"
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              accept="image/*,application/pdf"
+              onChange={onFileSelect}
+            />
+
+            {ativo.comprovanteUrl ? (
+              <div>
+                {isPDF(ativo.comprovanteUrl) ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    <span style={{ fontSize: "40px" }}>📄</span>
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: "#3b82f6",
+                        fontWeight: "bold",
+                        textDecoration: "none",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Ver PDF
+                    </a>
+                    <p style={{ color: "green", margin: 0, fontSize: "12px" }}>
+                      Comprovante Recebido!
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <img
+                      src={ativo.comprovanteUrl}
+                      style={{
+                        maxHeight: "150px",
+                        borderRadius: "4px",
+                        border: "1px solid #ddd",
+                      }}
+                      alt="ok"
+                    />
+                    <p style={{ color: "green", margin: 0 }}>Comprovante OK!</p>
+                  </div>
+                )}
+                <button onClick={removerComprovante} style={styles.btnRemove}>
+                  🗑️ Remover
+                </button>
+              </div>
+            ) : (
+              <div style={{ pointerEvents: "none" }}>
+                <span
+                  style={{
+                    fontSize: "24px",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  📂
+                </span>
+                <p style={{ margin: 0, color: "#bdc3c7", fontWeight: "bold" }}>
+                  Arraste ou Clique para anexar Comprovante
+                </p>
+                <p style={{ margin: 0, color: "#95a5a6", fontSize: "11px" }}>
+                  (Aceita Imagem ou PDF)
+                </p>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => moverPara(ativo.id, "producao")}
+            style={styles.btnVerde}
+          >
+            Aprovar Letra, Confirmar Pagamento e Iniciar Produção &gt;&gt;
+          </button>
+        </>
+      )}
+
+      {(ativo.status === "producao" || ativo.status === "finalizados") && (
+        <>
+          {ativo.devolvido && (
+            <div
+              style={{
+                background: "#fee2e2",
+                color: "#b91c1c",
+                padding: "15px",
+                borderRadius: "8px",
+                marginBottom: "20px",
+                border: "1px solid #fca5a5",
+                textAlign: "center",
+                fontWeight: "bold",
+              }}
+            >
+              🚫 ESTE PEDIDO FOI DEVOLVIDO
             </div>
           )}
-        </div>
-      </div>
+
+          <div
+            style={{
+              background: "#e8f5e9",
+              padding: "25px",
+              borderRadius: "8px",
+              marginBottom: "25px",
+              border: "1px solid #c8e6c9",
+            }}
+          >
+            {isAdmin ? (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <button
+                    onClick={() => setEditMode(!editMode)}
+                    style={{
+                      background: editMode ? "#ef4444" : "#f1f5f9",
+                      border: "1px solid #ccc",
+                      padding: "5px 10px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {editMode ? "🔒 Bloquear" : "🔓 Editar"}
+                  </button>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px",
+                    marginBottom: "15px",
+                    borderBottom: "1px solid #c8e6c9",
+                    paddingBottom: "15px",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        color: "#2e7d32",
+                      }}
+                    >
+                      SERVIÇO:
+                    </label>
+                    <select
+                      disabled={!editMode}
+                      value={ativo.servico}
+                      onChange={(e) =>
+                        atualizarPedido(ativo.id, "servico", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "5px",
+                        borderRadius: "4px",
+                        border: "1px solid #a5d6a7",
+                      }}
+                    >
+                      {servicos.map((s) => (
+                        <option key={s.id} value={s.nome}>
+                          {s.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        color: "#2e7d32",
+                      }}
+                    >
+                      VALOR:
+                    </label>
+                    <input
+                      disabled={!editMode}
+                      value={formatarMoeda(ativo.valorRaw)}
+                      onChange={(e) =>
+                        atualizarPedido(
+                          ativo.id,
+                          "valorRaw",
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "5px",
+                        borderRadius: "4px",
+                        border: "1px solid #a5d6a7",
+                        fontWeight: "bold",
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "10px",
+                  borderBottom: "1px solid #c8e6c9",
+                  paddingBottom: "10px",
+                }}
+              >
+                <strong>{ativo.servico}</strong>
+                <strong>{formatarMoeda(ativo.valorRaw)}</strong>
+              </div>
+            )}
+
+            {ativo.comprovanteUrl && (
+              <div
+                style={{
+                  marginBottom: "20px",
+                  background: "white",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border: "1px solid #a5d6a7",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    color: "#2e7d32",
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Comprovante de Pagamento:
+                </span>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  {isPDF(ativo.comprovanteUrl) ? (
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        textDecoration: "none",
+                        color: "#3b82f6",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      <span style={{ fontSize: "20px" }}>📄</span> Abrir PDF
+                    </a>
+                  ) : (
+                    <a
+                      href={ativo.comprovanteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        src={ativo.comprovanteUrl}
+                        style={{
+                          height: "60px",
+                          borderRadius: "4px",
+                          border: "1px solid #ccc",
+                        }}
+                        alt="Comprovante"
+                      />
+                    </a>
+                  )}
+                  <span style={{ fontSize: "12px", color: "#27ae60" }}>
+                    ✅ Confirmado
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <h3 style={{ marginTop: 0, color: "#2e7d32" }}>Roteiro Final:</h3>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontFamily: "inherit",
+                color: "#1b5e20",
+              }}
+            >
+              {ativo.roteiro}
+            </pre>
+
+            {ativo.status === "producao" && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  borderTop: "1px dashed #aaa",
+                  paddingTop: "10px",
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#2e7d32",
+                    fontSize: "12px",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Áudios do Projeto:
+                </strong>
+                <ListaAudios audios={ativo.audios} />
+              </div>
+            )}
+          </div>
+
+          {/* BOTÕES DE AÇÃO */}
+          {ativo.status === "producao" && (
+            <>
+              <button
+                onClick={() => finalizarComWhats(ativo)}
+                style={styles.btnZap}
+              >
+                ✅ Finalizar e Enviar WhatsApp
+              </button>
+              {/* BOTÃO DE RETORNAR PARA LEADS */}
+              <button
+                onClick={() => moverPara(ativo.id, "leads")}
+                style={styles.btnVoltar}
+              >
+                ↩ Retornar para Criação (Erro)
+              </button>
+            </>
+          )}
+
+          {ativo.status === "finalizados" && (
+            /* BOTÃO DE RETORNAR PARA PRODUÇÃO */
+            <button
+              onClick={() => moverPara(ativo.id, "producao")}
+              style={styles.btnVoltar}
+            >
+              ↩ Retornar para Produção (Erro)
+            </button>
+          )}
+
+          {isAdmin && editMode && (
+            <div
+              style={{
+                marginTop: "30px",
+                borderTop: "1px solid #eee",
+                paddingTop: "20px",
+                textAlign: "right",
+              }}
+            >
+              <button
+                onClick={toggleDevolucao}
+                style={{
+                  background: "none",
+                  border: "1px solid #ef4444",
+                  color: "#ef4444",
+                  padding: "8px 15px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                }}
+              >
+                {ativo.devolvido
+                  ? "↺ Cancelar Devolução"
+                  : "💸 Registrar Devolução"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
