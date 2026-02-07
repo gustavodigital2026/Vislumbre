@@ -1,91 +1,5 @@
-import React, { useRef, useState } from "react";
-
-const formatarMoeda = (v) => {
-  if (!v) return "";
-  const n = String(v).replace(/\D/g, "");
-  return (Number(n) / 100).toFixed(2).replace(".", ",");
-};
-
-const styles = {
-  grupoInput: { marginBottom: "20px" },
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontWeight: "bold",
-    color: "#34495e",
-  },
-  input: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "6px",
-    border: "1px solid #bdc3c7",
-    fontSize: "14px",
-    boxSizing: "border-box",
-  },
-  btnVerde: {
-    background: "#27ae60",
-    color: "white",
-    border: "none",
-    padding: "15px 25px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "16px",
-    fontWeight: "bold",
-    width: "100%",
-    boxShadow: "0 4px 0 #219150",
-  },
-  btnZap: {
-    background: "#25D366",
-    color: "white",
-    border: "none",
-    padding: "15px 25px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "16px",
-    fontWeight: "bold",
-    width: "100%",
-  },
-
-  // BOTÃO DE RETORNO (NOVO)
-  btnVoltar: {
-    background: "#f59e0b",
-    color: "white",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: "bold",
-    marginTop: "15px",
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-  },
-
-  areaDrop: {
-    border: "2px dashed #bdc3c7",
-    padding: "20px",
-    textAlign: "center",
-    borderRadius: "8px",
-    marginBottom: "20px",
-    cursor: "pointer",
-    background: "#f9f9f9",
-    transition: "background 0.2s",
-  },
-  btnRemove: {
-    background: "#fee2e2",
-    color: "#ef4444",
-    border: "1px solid #fca5a5",
-    padding: "5px 10px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "11px",
-    fontWeight: "bold",
-    marginTop: "10px",
-  },
-};
+import React, { useRef } from "react";
+import { formatarMoeda, normalizar } from "./utils";
 
 export default function Details({
   ativo,
@@ -94,683 +8,366 @@ export default function Details({
   finalizarComWhats,
   gerarRoteiroIA,
   loadingIA,
+  loadingDelivery,
   handleAudioUpload,
   handleDrop,
-  servicos = [],
+  servicos,
   currentUser,
 }) {
   const fileInputRef = useRef(null);
-  const [editMode, setEditMode] = useState(false);
-
-  if (!ativo) return null;
-  const isAdmin = currentUser?.role === "admin";
-
-  const toggleDevolucao = () => {
-    const novoStatus = !ativo.devolvido;
-    if (
-      window.confirm(
-        novoStatus ? "Marcar como DEVOLVIDO?" : "Cancelar devolução?"
-      )
-    ) {
-      atualizarPedido(ativo.id, "devolvido", novoStatus);
-      setEditMode(false);
-    }
-  };
-
-  const removerComprovante = (e) => {
-    e.stopPropagation();
-    if (window.confirm("Tem certeza que deseja remover este comprovante?")) {
-      atualizarPedido(ativo.id, "comprovanteUrl", null);
-    }
-  };
-
-  const handleAreaClick = () => {
-    fileInputRef.current.click();
-  };
-
-  const onFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const fakeEvent = {
-        preventDefault: () => {},
-        stopPropagation: () => {},
-        dataTransfer: { files: [file] },
-      };
-      handleDrop(fakeEvent, ativo.id);
-    }
-  };
-
-  const isPDF = (url) =>
-    url &&
-    (url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("pdf?"));
-
-  const ListaAudios = ({ audios }) =>
-    audios && audios.length > 0 ? (
-      <div style={{ marginBottom: "10px" }}>
-        {audios.map((url, i) => (
-          <div
-            key={i}
-            style={{
-              marginBottom: "5px",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
-            <audio controls src={url} style={{ flex: 1, height: "30px" }} />
-            <span style={{ fontSize: "12px", color: "#7f8c8d" }}>#{i + 1}</span>
-          </div>
-        ))}
-      </div>
-    ) : null;
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-      {(ativo.status === "leads" || ativo.status === "pendentes") && (
-        <>
-          <div
-            style={{
-              background: "#fdfdfd",
-              padding: "15px",
-              borderRadius: "8px",
-              border: "1px solid #eee",
-              marginBottom: "20px",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "20px",
-                marginBottom: "20px",
-              }}
-            >
-              <div style={styles.grupoInput}>
-                <label style={styles.label}>Nome:</label>
-                <input
-                  value={ativo.cliente}
-                  onChange={(e) =>
-                    atualizarPedido(ativo.id, "cliente", e.target.value)
-                  }
-                  style={styles.input}
-                  placeholder="Nome..."
-                />
-              </div>
-              <div style={styles.grupoInput}>
-                <label style={styles.label}>WhatsApp:</label>
-                <input
-                  value={ativo.telefone}
-                  onChange={(e) =>
-                    atualizarPedido(ativo.id, "telefone", e.target.value)
-                  }
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "20px",
-              }}
-            >
-              <div style={styles.grupoInput}>
-                <label style={styles.label}>Serviço:</label>
-                <select
-                  value={ativo.servico}
-                  onChange={(e) =>
-                    atualizarPedido(ativo.id, "servico", e.target.value)
-                  }
-                  style={styles.input}
-                >
-                  <option value="">Selecione...</option>
-                  {servicos.map((s) => (
-                    <option key={s.id} value={s.nome}>
-                      {s.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={styles.grupoInput}>
-                <label style={styles.label}>Valor (R$):</label>
-                <input
-                  value={formatarMoeda(ativo.valorRaw)}
-                  onChange={(e) =>
-                    atualizarPedido(
-                      ativo.id,
-                      "valorRaw",
-                      e.target.value.replace(/\D/g, "")
-                    )
-                  }
-                  style={{
-                    ...styles.input,
-                    fontWeight: "bold",
-                    color: "#27ae60",
-                  }}
-                  placeholder="0,00"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.grupoInput}>
-            <label style={styles.label}>📝 Histórico / Obs:</label>
-            <textarea
-              value={ativo.obs}
-              onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
-              rows={3}
-              style={{
-                ...styles.input,
-                background: "#fff3cd",
-                border: "1px solid #f1c40f",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              margin: "30px 0",
-              borderTop: "2px dashed #3498db",
-              position: "relative",
-            }}
-          >
-            <span
-              style={{
-                position: "absolute",
-                top: "-12px",
-                left: "0",
-                background: "white",
-                paddingRight: "10px",
-                color: "#3498db",
-                fontSize: "12px",
-                fontWeight: "bold",
-              }}
-            >
-              ÁREA DE CRIAÇÃO (LETRA/ROTEIRO)
-            </span>
-          </div>
-
-          <div style={styles.grupoInput}>
-            <label style={styles.label}>🎤 Áudios de Referência:</label>
-            <ListaAudios audios={ativo.audios} />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "10px",
-                background: "#f9f9f9",
-                borderRadius: "6px",
-                border: "1px solid #ddd",
-              }}
-            >
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={(e) => handleAudioUpload(e, ativo.id)}
-                style={{ fontSize: "12px" }}
-              />
-            </div>
-          </div>
-
-          <div style={styles.grupoInput}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "5px",
-              }}
-            >
-              <label style={{ fontWeight: "bold", color: "#34495e" }}>
-                Roteiro / Letra:
-              </label>
-              <button
-                onClick={() => gerarRoteiroIA(ativo)}
-                disabled={loadingIA}
-                style={{
-                  background: loadingIA
-                    ? "#ccc"
-                    : "linear-gradient(45deg, #8e44ad, #9b59b6)",
-                  color: "white",
-                  border: "none",
-                  padding: "5px 15px",
-                  borderRadius: "20px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                }}
-              >
-                {loadingIA ? "..." : "✨ Criar com IA"}
-              </button>
-            </div>
-            <textarea
-              value={ativo.roteiro}
-              onChange={(e) =>
-                atualizarPedido(ativo.id, "roteiro", e.target.value)
-              }
-              rows={12}
-              placeholder="Escreva o roteiro ou letra aqui..."
-              style={{
-                ...styles.input,
-                fontFamily: "monospace",
-                fontSize: "14px",
-                border: "2px solid #3498db44",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              margin: "40px 0",
-              borderTop: "2px dashed #27ae60",
-              position: "relative",
-            }}
-          >
-            <span
-              style={{
-                position: "absolute",
-                top: "-12px",
-                left: "0",
-                background: "white",
-                paddingRight: "10px",
-                color: "#27ae60",
-                fontSize: "12px",
-                fontWeight: "bold",
-              }}
-            >
-              FECHAMENTO & PAGAMENTO
-            </span>
-          </div>
-
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleDrop(e, ativo.id)}
-            onClick={handleAreaClick}
-            style={styles.areaDrop}
-            title="Clique ou arraste o comprovante"
-          >
+    <div
+      style={{
+        background: "white",
+        padding: "25px",
+        borderRadius: "16px",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
+      }}
+    >
+      {/* 1. CABEÇALHO DO CLIENTE */}
+      <div style={{ marginBottom: "25px" }}>
+        <label className="input-label">Nome do Cliente</label>
+        <input
+          className="modern-input"
+          value={ativo.cliente}
+          onChange={(e) => atualizarPedido(ativo.id, "cliente", e.target.value)}
+          placeholder="Ex: João Silva"
+          style={{ fontSize: "18px", fontWeight: "600", color: "#1e293b" }}
+        />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "15px",
+            marginTop: "15px",
+          }}
+        >
+          <div>
+            <label className="input-label">WhatsApp</label>
             <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              accept="image/*,application/pdf"
-              onChange={onFileSelect}
+              className="modern-input"
+              value={ativo.telefone}
+              onChange={(e) =>
+                atualizarPedido(ativo.id, "telefone", e.target.value)
+              }
             />
+          </div>
+          <div>
+            <label className="input-label">Serviço</label>
+            <select
+              className="modern-input"
+              value={ativo.servico}
+              onChange={(e) =>
+                atualizarPedido(ativo.id, "servico", e.target.value)
+              }
+            >
+              {servicos.map((s) => (
+                <option key={s.id} value={s.nome}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
-            {ativo.comprovanteUrl ? (
-              <div>
-                {isPDF(ativo.comprovanteUrl) ? (
+      <hr
+        style={{
+          border: "0",
+          borderTop: "1px solid #f1f5f9",
+          margin: "25px 0",
+        }}
+      />
+
+      {/* 2. ÁREA DE NEGOCIAÇÃO (LEADS) */}
+      <div style={{ marginBottom: "25px" }}>
+        <label className="input-label">💰 Valor Negociado</label>
+        <input
+          className="modern-input"
+          value={ativo.valorRaw || ""}
+          onChange={(e) =>
+            atualizarPedido(ativo.id, "valorRaw", e.target.value)
+          }
+          placeholder="R$ 0,00"
+        />
+
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleDrop(e, ativo.id)}
+          style={{
+            marginTop: "15px",
+            border: "2px dashed #cbd5e1",
+            borderRadius: "12px",
+            padding: "20px",
+            textAlign: "center",
+            background: ativo.comprovanteUrl ? "#f0fdf4" : "#f8fafc",
+            borderColor: ativo.comprovanteUrl ? "#86efac" : "#cbd5e1",
+            cursor: "pointer",
+            transition: "0.2s",
+          }}
+          onClick={() => document.getElementById("proof-upload").click()}
+        >
+          <input
+            type="file"
+            id="proof-upload"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const dt = new DataTransfer();
+              dt.items.add(e.target.files[0]);
+              handleDrop(
+                {
+                  preventDefault: () => {},
+                  stopPropagation: () => {},
+                  dataTransfer: dt,
+                },
+                ativo.id
+              );
+            }}
+          />
+
+          {ativo.comprovanteUrl ? (
+            <div style={{ color: "#166534", fontWeight: "600" }}>
+              ✅ Comprovante Anexado! <br />
+              <a
+                href={ativo.comprovanteUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: "12px",
+                  color: "#16a34a",
+                  textDecoration: "underline",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                Ver arquivo
+              </a>
+            </div>
+          ) : (
+            <div style={{ color: "#64748b" }}>
+              📄 <strong>Arraste o Comprovante aqui</strong>
+              <br />
+              <span style={{ fontSize: "12px" }}>
+                ou clique para selecionar
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. ÁREA DE CRIAÇÃO (ROTEIRO) */}
+      <div style={{ marginBottom: "25px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "8px",
+          }}
+        >
+          <label className="input-label" style={{ margin: 0 }}>
+            📝 Roteiro / Briefing
+          </label>
+          <button
+            onClick={() => gerarRoteiroIA(ativo)}
+            disabled={loadingIA}
+            style={{
+              background: loadingIA ? "#e2e8f0" : "#eff6ff",
+              color: loadingIA ? "#94a3b8" : "#2563eb",
+              border: "none",
+              padding: "4px 10px",
+              borderRadius: "6px",
+              fontSize: "11px",
+              fontWeight: "600",
+              cursor: loadingIA ? "not-allowed" : "pointer",
+            }}
+          >
+            {loadingIA ? "✨ Criando..." : "✨ Criar com IA"}
+          </button>
+        </div>
+        <textarea
+          className="modern-input"
+          rows={6}
+          value={ativo.roteiro || ""}
+          onChange={(e) => atualizarPedido(ativo.id, "roteiro", e.target.value)}
+          placeholder="Escreva o roteiro aqui..."
+          style={{ lineHeight: "1.5" }}
+        />
+        <div style={{ marginTop: "10px" }}>
+          <label className="input-label">Observações Internas</label>
+          <input
+            className="modern-input"
+            value={ativo.obs}
+            onChange={(e) => atualizarPedido(ativo.id, "obs", e.target.value)}
+            placeholder="Detalhes técnicos, tom de voz..."
+          />
+        </div>
+      </div>
+
+      {/* 4. ÁREA DE PRODUÇÃO (ÁUDIOS) */}
+      {(ativo.status === "producao" || ativo.status === "finalizados") && (
+        <div
+          style={{
+            background: "#f1f5f9",
+            padding: "20px",
+            borderRadius: "12px",
+            marginTop: "20px",
+          }}
+        >
+          <h4 style={{ margin: "0 0 15px 0", color: "#334155" }}>
+            🎙️ Arquivos da Produção
+          </h4>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "10px",
+              marginBottom: "15px",
+            }}
+          >
+            {ativo.audios &&
+              ativo.audios.map((url, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: "white",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <span style={{ fontSize: "20px" }}>🎵</span>
                   <div
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "5px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#1e293b",
                     }}
                   >
-                    <span style={{ fontSize: "40px" }}>📄</span>
-                    <a
-                      href={ativo.comprovanteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        color: "#3b82f6",
-                        fontWeight: "bold",
-                        textDecoration: "none",
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Ver PDF
-                    </a>
-                    <p style={{ color: "green", margin: 0, fontSize: "12px" }}>
-                      Comprovante Recebido!
-                    </p>
+                    Áudio {i + 1}
                   </div>
-                ) : (
-                  <div>
-                    <img
-                      src={ativo.comprovanteUrl}
-                      style={{
-                        maxHeight: "150px",
-                        borderRadius: "4px",
-                        border: "1px solid #ddd",
-                      }}
-                      alt="ok"
-                    />
-                    <p style={{ color: "green", margin: 0 }}>Comprovante OK!</p>
-                  </div>
-                )}
-                <button onClick={removerComprovante} style={styles.btnRemove}>
-                  🗑️ Remover
-                </button>
-              </div>
-            ) : (
-              <div style={{ pointerEvents: "none" }}>
-                <span
-                  style={{
-                    fontSize: "24px",
-                    display: "block",
-                    marginBottom: "5px",
-                  }}
-                >
-                  📂
-                </span>
-                <p style={{ margin: 0, color: "#bdc3c7", fontWeight: "bold" }}>
-                  Arraste ou Clique para anexar Comprovante
-                </p>
-                <p style={{ margin: 0, color: "#95a5a6", fontSize: "11px" }}>
-                  (Aceita Imagem ou PDF)
-                </p>
-              </div>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "#3b82f6",
+                      textDecoration: "none",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Baixar
+                  </a>
+                </div>
+              ))}
+            {(!ativo.audios || ativo.audios.length === 0) && (
+              <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+                Nenhum áudio anexado.
+              </span>
             )}
           </div>
 
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            onChange={(e) => handleAudioUpload(e, ativo.id)}
+            accept="audio/*,video/*,.pdf"
+          />
           <button
-            onClick={() => moverPara(ativo.id, "producao")}
-            style={styles.btnVerde}
-          >
-            Aprovar Letra, Confirmar Pagamento e Iniciar Produção &gt;&gt;
-          </button>
-        </>
-      )}
-
-      {(ativo.status === "producao" || ativo.status === "finalizados") && (
-        <>
-          {ativo.devolvido && (
-            <div
-              style={{
-                background: "#fee2e2",
-                color: "#b91c1c",
-                padding: "15px",
-                borderRadius: "8px",
-                marginBottom: "20px",
-                border: "1px solid #fca5a5",
-                textAlign: "center",
-                fontWeight: "bold",
-              }}
-            >
-              🚫 ESTE PEDIDO FOI DEVOLVIDO
-            </div>
-          )}
-
-          <div
+            onClick={() => fileInputRef.current.click()}
             style={{
-              background: "#e8f5e9",
-              padding: "25px",
-              borderRadius: "8px",
-              marginBottom: "25px",
-              border: "1px solid #c8e6c9",
+              background: "#3b82f6",
+              color: "white",
+              border: "none",
+              padding: "8px 15px",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: "600",
             }}
           >
-            {isAdmin ? (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginBottom: "10px",
-                  }}
-                >
-                  <button
-                    onClick={() => setEditMode(!editMode)}
-                    style={{
-                      background: editMode ? "#ef4444" : "#f1f5f9",
-                      border: "1px solid #ccc",
-                      padding: "5px 10px",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {editMode ? "🔒 Bloquear" : "🔓 Editar"}
-                  </button>
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "10px",
-                    marginBottom: "15px",
-                    borderBottom: "1px solid #c8e6c9",
-                    paddingBottom: "15px",
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "bold",
-                        color: "#2e7d32",
-                      }}
-                    >
-                      SERVIÇO:
-                    </label>
-                    <select
-                      disabled={!editMode}
-                      value={ativo.servico}
-                      onChange={(e) =>
-                        atualizarPedido(ativo.id, "servico", e.target.value)
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "5px",
-                        borderRadius: "4px",
-                        border: "1px solid #a5d6a7",
-                      }}
-                    >
-                      {servicos.map((s) => (
-                        <option key={s.id} value={s.nome}>
-                          {s.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "bold",
-                        color: "#2e7d32",
-                      }}
-                    >
-                      VALOR:
-                    </label>
-                    <input
-                      disabled={!editMode}
-                      value={formatarMoeda(ativo.valorRaw)}
-                      onChange={(e) =>
-                        atualizarPedido(
-                          ativo.id,
-                          "valorRaw",
-                          e.target.value.replace(/\D/g, "")
-                        )
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "5px",
-                        borderRadius: "4px",
-                        border: "1px solid #a5d6a7",
-                        fontWeight: "bold",
-                      }}
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "10px",
-                  borderBottom: "1px solid #c8e6c9",
-                  paddingBottom: "10px",
-                }}
-              >
-                <strong>{ativo.servico}</strong>
-                <strong>{formatarMoeda(ativo.valorRaw)}</strong>
-              </div>
-            )}
-
-            {ativo.comprovanteUrl && (
-              <div
-                style={{
-                  marginBottom: "20px",
-                  background: "white",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #a5d6a7",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: "bold",
-                    color: "#2e7d32",
-                    textTransform: "uppercase",
-                    display: "block",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Comprovante de Pagamento:
-                </span>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
-                  {isPDF(ativo.comprovanteUrl) ? (
-                    <a
-                      href={ativo.comprovanteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        textDecoration: "none",
-                        color: "#3b82f6",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      <span style={{ fontSize: "20px" }}>📄</span> Abrir PDF
-                    </a>
-                  ) : (
-                    <a
-                      href={ativo.comprovanteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img
-                        src={ativo.comprovanteUrl}
-                        style={{
-                          height: "60px",
-                          borderRadius: "4px",
-                          border: "1px solid #ccc",
-                        }}
-                        alt="Comprovante"
-                      />
-                    </a>
-                  )}
-                  <span style={{ fontSize: "12px", color: "#27ae60" }}>
-                    ✅ Confirmado
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <h3 style={{ marginTop: 0, color: "#2e7d32" }}>Roteiro Final:</h3>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                fontFamily: "inherit",
-                color: "#1b5e20",
-              }}
-            >
-              {ativo.roteiro}
-            </pre>
-
-            {ativo.status === "producao" && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  borderTop: "1px dashed #aaa",
-                  paddingTop: "10px",
-                }}
-              >
-                <strong
-                  style={{
-                    color: "#2e7d32",
-                    fontSize: "12px",
-                    display: "block",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Áudios do Projeto:
-                </strong>
-                <ListaAudios audios={ativo.audios} />
-              </div>
-            )}
-          </div>
-
-          {/* BOTÕES DE AÇÃO */}
-          {ativo.status === "producao" && (
-            <>
-              <button
-                onClick={() => finalizarComWhats(ativo)}
-                style={styles.btnZap}
-              >
-                ✅ Finalizar e Enviar WhatsApp
-              </button>
-              {/* BOTÃO DE RETORNAR PARA LEADS */}
-              <button
-                onClick={() => moverPara(ativo.id, "leads")}
-                style={styles.btnVoltar}
-              >
-                ↩ Retornar para Criação (Erro)
-              </button>
-            </>
-          )}
-
-          {ativo.status === "finalizados" && (
-            /* BOTÃO DE RETORNAR PARA PRODUÇÃO */
-            <button
-              onClick={() => moverPara(ativo.id, "producao")}
-              style={styles.btnVoltar}
-            >
-              ↩ Retornar para Produção (Erro)
-            </button>
-          )}
-
-          {isAdmin && editMode && (
-            <div
-              style={{
-                marginTop: "30px",
-                borderTop: "1px solid #eee",
-                paddingTop: "20px",
-                textAlign: "right",
-              }}
-            >
-              <button
-                onClick={toggleDevolucao}
-                style={{
-                  background: "none",
-                  border: "1px solid #ef4444",
-                  color: "#ef4444",
-                  padding: "8px 15px",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                {ativo.devolvido
-                  ? "↺ Cancelar Devolução"
-                  : "💸 Registrar Devolução"}
-              </button>
-            </div>
-          )}
-        </>
+            ← Adicionar arquivo
+          </button>
+        </div>
       )}
+
+      {/* 5. AÇÕES FINAIS (BOTÕES) */}
+      <div
+        style={{
+          marginTop: "30px",
+          display: "flex",
+          gap: "10px",
+          justifyContent: "flex-end",
+        }}
+      >
+        {ativo.status === "leads" && (
+          <button
+            onClick={() => moverPara(ativo.id, "producao")}
+            className="btn-primary"
+            style={{ background: "#0ea5e9" }}
+          >
+            Enviar para Produção ➡️
+          </button>
+        )}
+
+        {ativo.status === "producao" && (
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              onClick={() => moverPara(ativo.id, "leads")}
+              style={{
+                background: "#64748b",
+                color: "white",
+                border: "none",
+                padding: "10px 20px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+              }}
+            >
+              ⬅️ Voltar
+            </button>
+            <button
+              onClick={() => finalizarComWhats(ativo)}
+              disabled={loadingDelivery}
+              className="btn-primary"
+              style={{
+                background: "#22c55e",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {loadingDelivery ? (
+                <>✨ Gerando texto...</>
+              ) : (
+                <>✅ Finalizar com Whats</>
+              )}
+            </button>
+          </div>
+        )}
+
+        {ativo.status === "finalizados" && (
+          <button
+            onClick={() => moverPara(ativo.id, "producao")}
+            style={{
+              background: "#f59e0b",
+              color: "white",
+              border: "none",
+              padding: "10px 20px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+            }}
+          >
+            ⚠️ Cliente pediu alteração (Voltar)
+          </button>
+        )}
+      </div>
     </div>
   );
 }
