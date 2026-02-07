@@ -1,32 +1,52 @@
-export const formatarMoedaInput = (v) => {
-  if (!v) return "";
-  const n = String(v).replace(/\D/g, "");
-  return (Number(n) / 100).toFixed(2).replace(".", ",");
-};
+// src/utils.js
 
-export const calcularDuracao = (inicio, fim) => {
-  if (!inicio || !fim) return "-";
-  const diff = fim - inicio;
-  const dias = Math.floor(diff / 86400000);
-  const horas = Math.floor(diff / 3600000);
-  const min = Math.floor(diff / 60000);
-  if (dias > 0) return `${dias}d`;
-  if (horas > 0) return `${horas}h`;
-  return `${min}m`;
-};
-
-export const formatarDataLista = (dataString) => {
-  if (!dataString) return "";
-  try {
-    const partes = dataString.split(" ");
-    return `${partes[0].substring(0, 5)} às ${partes[1].substring(0, 5)}`;
-  } catch (e) {
-    return dataString;
+export const mapearStatus = (s) => {
+  switch (s) {
+    case "leads":
+      return "Leads / Criação";
+    case "pendentes":
+      return "Leads (Antigo)";
+    case "producao":
+      return "Produção";
+    case "finalizados":
+      return "Entregues";
+    default:
+      return s;
   }
 };
 
-export const verificarAtraso = (timestampCriacao) => {
-  const agora = Date.now();
-  const diferenca = agora - timestampCriacao;
-  return diferenca > 24 * 60 * 60 * 1000;
+export const formatarDuracaoHoras = (ms) => {
+  if (!ms || ms <= 0) return "-";
+  const horas = Math.floor(ms / 3600000);
+  const minutos = Math.floor((ms % 3600000) / 60000);
+  if (horas > 0) return `${horas}h ${minutos}m`;
+  return `${minutos}m`;
 };
+
+export const formatarMoeda = (v) => {
+  if (!v) return "R$ 0,00";
+  const n = String(v).replace(/\D/g, "");
+  return "R$ " + (Number(n) / 100).toFixed(2).replace(".", ",");
+};
+
+export const parseDataSegura = (valor) => {
+  if (!valor) return 0;
+  if (typeof valor === "number") return valor;
+  try {
+    const [data, hora] = valor.split(", ");
+    if (data && hora) {
+      const [dia, mes, ano] = data.split("/");
+      const [h, m, s] = hora.split(":");
+      return new Date(ano, mes - 1, dia, h, m, s).getTime();
+    }
+  } catch (e) {}
+  return 0;
+};
+
+export const normalizar = (str) =>
+  str
+    ? str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    : "";
